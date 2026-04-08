@@ -8,7 +8,15 @@ class SyncService {
   final remote = HouseholdRemoteService();
 
   Future<Map<String, dynamic>> syncAll() async {
-    final pending = offline.getPending();
+    final pending = offline.getPending()
+      ..sort((a, b) {
+        final aCreated = DateTime.tryParse((a['created_at'] ?? '').toString());
+        final bCreated = DateTime.tryParse((b['created_at'] ?? '').toString());
+        if (aCreated == null && bCreated == null) return 0;
+        if (aCreated == null) return 1;
+        if (bCreated == null) return -1;
+        return aCreated.compareTo(bCreated);
+      });
 
     if (pending.isEmpty) {
       debugPrint("📦 No pending data");
@@ -41,7 +49,8 @@ class SyncService {
 
         final household = Map<String, dynamic>.from(householdRaw);
         final members = membersRaw
-            .map((e) => Map<String, dynamic>.from(e as Map))
+            .whereType<Map>()
+            .map((e) => Map<String, dynamic>.from(e))
             .toList();
 
         if (household.isEmpty || members.isEmpty) {
@@ -60,6 +69,11 @@ class SyncService {
         final errorMessage = e.toString().replaceFirst('Exception: ', '');
         final itemId = item["id"]?.toString() ?? 'unknown_local_id';
         final message = '[$itemId] $errorMessage';
+        
+        await offline.markFailed(
+          id: itemId,
+          error: errorMessage,
+        );
 
         errors.add(message);
         debugPrint("❌ Sync failed for one household: $message");

@@ -1030,38 +1030,6 @@ Widget _buildSoftGlow({
   );
 }
 
-  Widget buildLocationPill(IconData icon, String label) {
-  return Container(
-    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
-    decoration: BoxDecoration(
-      color: const Color(0xFFF8FAFC),
-      borderRadius: BorderRadius.circular(12),
-      border: Border.all(
-        color: const Color(0xFF0F6FFF).withOpacity(0.08),
-      ),
-    ),
-    child: Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Icon(
-          icon,
-          size: 14,
-          color: const Color(0xFF0F6FFF),
-        ),
-        const SizedBox(width: 6),
-        Text(
-          label,
-          style: const TextStyle(
-            fontSize: 12,
-            fontWeight: FontWeight.w500,
-            color: Color(0xFF334155),
-          ),
-        ),
-      ],
-    ),
-  );
-}
-
   Widget buildHofCard() {
     return buildSectionCard(
       title: "Head of Family",
@@ -1129,7 +1097,7 @@ Widget _buildSoftGlow({
           ),
           const SizedBox(height: 16),
           DropdownButtonFormField<String>(
-            value: hofMaritalStatus,
+            initialValue: hofMaritalStatus,
             decoration: const InputDecoration(
               labelText: "Marital Status",
               prefixIcon: Icon(Icons.favorite_outline_rounded),
@@ -1149,7 +1117,7 @@ Widget _buildSoftGlow({
             },
           ),
           const SizedBox(height: 16),
-          buildSwitchTile(
+          buildYesNoField(
             title: "Part of SHG",
             value: hofIsShgMember,
             onChanged: (value) {
@@ -1172,7 +1140,7 @@ Widget _buildSoftGlow({
             ),
           ],
           const SizedBox(height: 16),
-          buildSwitchTile(
+          buildYesNoField(
             title: "Is part of a special group",
             value: hofIsSpecialGroup,
             onChanged: (value) {
@@ -1187,7 +1155,7 @@ Widget _buildSoftGlow({
           if (hofIsSpecialGroup) ...[
             const SizedBox(height: 16),
             DropdownButtonFormField<String>(
-              value: hofSpecialGroup,
+              initialValue: hofSpecialGroup,
               decoration: const InputDecoration(
                 labelText: "Special Group Type",
                 prefixIcon: Icon(Icons.workspace_premium_rounded),
@@ -1208,7 +1176,7 @@ Widget _buildSoftGlow({
             ),
           ],
           const SizedBox(height: 16),
-          buildSwitchTile(
+          buildYesNoField(
             title: "Job Card Holder",
             value: hofIsJobCardHolder,
             onChanged: (value) {
@@ -1218,7 +1186,7 @@ Widget _buildSoftGlow({
             },
           ),
           const SizedBox(height: 16),
-          buildSwitchTile(
+          buildYesNoField(
             title: "Has Aadhaar",
             value: hofHasAadhaar,
             onChanged: (value) {
@@ -1244,7 +1212,7 @@ Widget _buildSoftGlow({
             ),
           ],
           const SizedBox(height: 16),
-          buildSwitchTile(
+          buildYesNoField(
             title: "Has EPIC",
             value: hofHasEpic,
             onChanged: (value) {
@@ -1562,28 +1530,72 @@ Widget _buildSoftGlow({
     );
   }
 
-  Widget buildSwitchTile({
+  Widget buildYesNoField({
     required String title,
     required bool value,
     required ValueChanged<bool> onChanged,
   }) {
     return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
         color: const Color(0xFFF8FAFC),
         borderRadius: BorderRadius.circular(18),
         border: Border.all(color: const Color(0xFFE2E8F0)),
       ),
-      child: SwitchListTile.adaptive(
-        value: value,
-        onChanged: onChanged,
-        title: Text(
-          title,
-          style: const TextStyle(
-            fontWeight: FontWeight.w700,
-            color: Color(0xFF0F172A),
+      child: Row(
+        children: [
+          Expanded(
+            child: Text(
+              title,
+              style: const TextStyle(
+                fontWeight: FontWeight.w700,
+                color: Color(0xFF0F172A),
+              ),
+            ),
+          ),
+          const SizedBox(width: 10),
+          _buildBooleanChip(
+            label: 'YES',
+            selected: value,
+            onTap: () => onChanged(true),
+          ),
+          const SizedBox(width: 8),
+          _buildBooleanChip(
+            label: 'NO',
+            selected: !value,
+            onTap: () => onChanged(false),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildBooleanChip({
+    required String label,
+    required bool selected,
+    required VoidCallback onTap,
+  }) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(12),
+      child: Ink(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 9),
+        decoration: BoxDecoration(
+          color: selected ? const Color(0xFFDCEBFF) : Colors.white,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(
+            color: selected ? const Color(0xFF0F6FFF) : const Color(0xFFE2E8F0),
           ),
         ),
-        contentPadding: const EdgeInsets.symmetric(horizontal: 14),
+        child: Text(
+          label,
+          style: TextStyle(
+            color: selected ? const Color(0xFF0F6FFF) : const Color(0xFF475569),
+            fontWeight: FontWeight.w800,
+            fontSize: 12,
+          ),
+        ),
       ),
     );
   }
@@ -1828,7 +1840,7 @@ class _MemberFormSheetState extends State<MemberFormSheet> {
                 child: Column(
                   children: [
                     DropdownButtonFormField<String>(
-                      value: relationship,
+                      initialValue: relationship,
                       decoration: const InputDecoration(
                         labelText: "Relationship to HOF",
                         prefixIcon: Icon(Icons.family_restroom_rounded),
@@ -1880,7 +1892,7 @@ class _MemberFormSheetState extends State<MemberFormSheet> {
                     ),
                     const SizedBox(height: 16),
                     DropdownButtonFormField<String>(
-                      value: maritalStatus,
+                      initialValue: maritalStatus,
                       decoration: const InputDecoration(
                         labelText: "Marital Status",
                         prefixIcon: Icon(Icons.favorite_outline_rounded),
@@ -1900,7 +1912,7 @@ class _MemberFormSheetState extends State<MemberFormSheet> {
                       },
                     ),
                     const SizedBox(height: 16),
-                    switchTile(
+                    buildYesNoField(
                       title: "Part of SHG",
                       value: isShgMember,
                       onChanged: (value) {
@@ -1923,7 +1935,7 @@ class _MemberFormSheetState extends State<MemberFormSheet> {
                       ),
                     ],
                     const SizedBox(height: 16),
-                    switchTile(
+                    buildYesNoField(
                       title: "Is part of a special group",
                       value: isSpecialGroup,
                       onChanged: (value) {
@@ -1938,7 +1950,7 @@ class _MemberFormSheetState extends State<MemberFormSheet> {
                     if (isSpecialGroup) ...[
                       const SizedBox(height: 16),
                       DropdownButtonFormField<String>(
-                        value: specialGroup,
+                        initialValue: specialGroup,
                         decoration: const InputDecoration(
                           labelText: "Special Group Type",
                           prefixIcon: Icon(Icons.workspace_premium_rounded),
@@ -1959,7 +1971,7 @@ class _MemberFormSheetState extends State<MemberFormSheet> {
                       ),
                     ],
                     const SizedBox(height: 16),
-                    switchTile(
+                    buildYesNoField(
                       title: "Job Card Holder",
                       value: isJobCardHolder,
                       onChanged: (value) {
@@ -1969,7 +1981,7 @@ class _MemberFormSheetState extends State<MemberFormSheet> {
                       },
                     ),
                     const SizedBox(height: 16),
-                    switchTile(
+                    buildYesNoField(
                       title: "Has Aadhaar",
                       value: hasAadhaar,
                       onChanged: (value) {
@@ -1995,7 +2007,7 @@ class _MemberFormSheetState extends State<MemberFormSheet> {
                       ),
                     ],
                     const SizedBox(height: 16),
-                    switchTile(
+                    buildYesNoField(
                       title: "Has EPIC",
                       value: hasEpic,
                       onChanged: (value) {
@@ -2135,28 +2147,72 @@ class _MemberFormSheetState extends State<MemberFormSheet> {
     );
   }
 
-  Widget switchTile({
+  Widget buildYesNoField({
     required String title,
     required bool value,
     required ValueChanged<bool> onChanged,
   }) {
     return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
         color: const Color(0xFFF8FAFC),
         borderRadius: BorderRadius.circular(18),
         border: Border.all(color: const Color(0xFFE2E8F0)),
       ),
-      child: SwitchListTile.adaptive(
-        value: value,
-        onChanged: onChanged,
-        title: Text(
-          title,
-          style: const TextStyle(
-            fontWeight: FontWeight.w700,
-            color: Color(0xFF0F172A),
+      child: Row(
+        children: [
+          Expanded(
+            child: Text(
+              title,
+              style: const TextStyle(
+                fontWeight: FontWeight.w700,
+                color: Color(0xFF0F172A),
+              ),
+            ),
+          ),
+          const SizedBox(width: 10),
+          _buildBooleanChip(
+            label: 'YES',
+            selected: value,
+            onTap: () => onChanged(true),
+          ),
+          const SizedBox(width: 8),
+          _buildBooleanChip(
+            label: 'NO',
+            selected: !value,
+            onTap: () => onChanged(false),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildBooleanChip({
+    required String label,
+    required bool selected,
+    required VoidCallback onTap,
+  }) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(12),
+      child: Ink(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 9),
+        decoration: BoxDecoration(
+          color: selected ? const Color(0xFFDCEBFF) : Colors.white,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(
+            color: selected ? const Color(0xFF0F6FFF) : const Color(0xFFE2E8F0),
           ),
         ),
-        contentPadding: const EdgeInsets.symmetric(horizontal: 14),
+        child: Text(
+          label,
+          style: TextStyle(
+            color: selected ? const Color(0xFF0F6FFF) : const Color(0xFF475569),
+            fontWeight: FontWeight.w800,
+            fontSize: 12,
+          ),
+        ),
       ),
     );
   }

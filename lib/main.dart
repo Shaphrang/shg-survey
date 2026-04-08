@@ -15,7 +15,8 @@ Future<void> main() async {
   /// Separate boxes
   await Hive.openBox('session_box'); // selected survey session
   await Hive.openBox('offline_surveys'); // offline household/member entries
-
+  await Hive.openBox('master_data_box'); 
+  
   await Supabase.initialize(
     url: 'https://yqkqaejbmajfnrlhgori.supabase.co',
     anonKey:

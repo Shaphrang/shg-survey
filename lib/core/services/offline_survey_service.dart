@@ -18,14 +18,20 @@ class OfflineSurveyService {
     required List<Map<String, dynamic>> members,
   }) async {
     final localId = household["device_household_ref"]?.toString() ?? _generateId();
+    final nowIso = DateTime.now().toIso8601String();
+    final existing = _box.get(localId);
+    final existingMap = existing is Map ? Map<String, dynamic>.from(existing) : null;
 
     await _box.put(localId, {
       "id": localId,
       "household": household,
       "members": members,
       "uploaded": false,
+      "last_error": existingMap?["last_error"],
+      "sync_attempts": existingMap?["sync_attempts"] ?? 0,
       "type": "household_survey",
-      "created_at": DateTime.now().toIso8601String(),
+      "created_at": existingMap?["created_at"] ?? nowIso,
+      "updated_at": nowIso,
     });
 
     debugPrint("💾 Household saved offline: $localId");
@@ -54,6 +60,23 @@ class OfflineSurveyService {
 
     await _box.put(id, map);
   }
+
+    Future<void> markFailed({
+    required String id,
+    required String error,
+  }) async {
+    final data = _box.get(id);
+    if (data is! Map) return;
+
+    final map = Map<String, dynamic>.from(data);
+    map["uploaded"] = false;
+    map["last_error"] = error;
+    map["sync_attempts"] = ((map["sync_attempts"] as num?)?.toInt() ?? 0) + 1;
+    map["updated_at"] = DateTime.now().toIso8601String();
+
+    await _box.put(id, map);
+  }
+
 
   Future<void> clearUploaded() async {
     final keysToDelete = <dynamic>[];

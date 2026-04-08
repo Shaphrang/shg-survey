@@ -47,7 +47,7 @@ class _LocationSetupScreenState extends State<LocationSetupScreen> {
 
   Route _noAnimationRoute(Widget page) {
     return PageRouteBuilder(
-      pageBuilder: (_, __, ___) => page,
+      pageBuilder: (_, _, _) => page,
       transitionDuration: Duration.zero,
       reverseTransitionDuration: Duration.zero,
     );
@@ -531,7 +531,7 @@ class _LocationSetupScreenState extends State<LocationSetupScreen> {
                 ),
                 SizedBox(height: 8),
                 Text(
-                  "This will be asked only once. After verification, the location is saved locally and next time the app opens it will directly continue to household entry.",
+                  "After verification, the location is saved locally and next time the app will be able to perform offline functionality.",
                   style: TextStyle(
                     color: Colors.white70,
                     fontSize: 14,
@@ -744,7 +744,7 @@ class _LocationSetupScreenState extends State<LocationSetupScreen> {
     required ValueChanged<String?> onChanged,
   }) {
     return DropdownButtonFormField<String>(
-      value: value,
+      initialValue: value,
       isExpanded: true,
       decoration: InputDecoration(
         labelText: label,
