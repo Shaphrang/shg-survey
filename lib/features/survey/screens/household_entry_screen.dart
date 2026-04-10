@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:math';
 import 'dart:ui';
 
 import 'package:flutter/material.dart';
@@ -9,7 +8,6 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../../core/services/offline_survey_service.dart';
 import '../../../core/services/sync_service.dart';
-import '../remote/household_remote_service.dart';
 import 'location_setup_screen.dart';
 import '../widgets/survey_yes_no_field.dart';
 
@@ -24,13 +22,11 @@ class _HouseholdEntryScreenState extends State<HouseholdEntryScreen> {
   final Box sessionBox = Hive.box('session_box');
   final OfflineSurveyService offlineService = OfflineSurveyService();
   final SyncService syncService = SyncService();
-  final HouseholdRemoteService remoteService = HouseholdRemoteService();
   final InternetConnection internetConnection = InternetConnection();
   final SupabaseClient supabase = Supabase.instance.client;
   final GlobalKey<ScaffoldState> scaffoldKey = GlobalKey<ScaffoldState>();
 
   StreamSubscription<InternetStatus>? internetSubscription;
-  final Random random = Random();
 
   Map<String, dynamic> session = {};
 
@@ -101,11 +97,17 @@ class _HouseholdEntryScreenState extends State<HouseholdEntryScreen> {
 
   Future<void> bootstrap() async {
     await refreshPendingCount();
-    await refreshConnectionState(showSnack: false);
+    final reachable = await refreshConnectionState(showSnack: false);
+    if (reachable) {
+      await syncPending(silent: true);
+    }
 
     internetSubscription =
         internetConnection.onStatusChange.listen((InternetStatus _) async {
-      await refreshConnectionState(showSnack: false);
+      final reachable = await refreshConnectionState(showSnack: false);
+      if (reachable) {
+        await syncPending(silent: true);
+      }
     });
   }
 
@@ -168,10 +170,6 @@ class _HouseholdEntryScreenState extends State<HouseholdEntryScreen> {
     }
 
     return raw.replaceAll('Exception: ', '');
-  }
-
-  String generateRef(String prefix) {
-    return '${prefix}_${DateTime.now().microsecondsSinceEpoch}_${random.nextInt(99999)}';
   }
 
   int? parseAge(String text) {
@@ -249,7 +247,7 @@ class _HouseholdEntryScreenState extends State<HouseholdEntryScreen> {
     if (result == null) return;
 
     final prepared = Map<String, dynamic>.from(result);
-    prepared['device_member_ref'] ??= generateRef('mem');
+    prepared['device_member_ref'] ??= offlineService.newDeviceRef('mem');
 
     setState(() {
       if (index != null) {
@@ -269,8 +267,7 @@ class _HouseholdEntryScreenState extends State<HouseholdEntryScreen> {
       return;
     }
 
-    final canReachServer = await refreshConnectionState(showSnack: false);
-    final deviceHouseholdRef = generateRef('hh');
+    final deviceHouseholdRef = offlineService.newDeviceRef('hh');
 
     final householdPayload = <String, dynamic>{
       "device_household_ref": deviceHouseholdRef,
@@ -286,7 +283,7 @@ class _HouseholdEntryScreenState extends State<HouseholdEntryScreen> {
 
     final allMembers = <Map<String, dynamic>>[
       {
-        "device_member_ref": generateRef('mem'),
+        "device_member_ref": offlineService.newDeviceRef('mem'),
         "sort_order": 1,
         "relationship_to_hof": "head_of_family",
         "member_name": hofNameController.text.trim(),
@@ -294,8 +291,7 @@ class _HouseholdEntryScreenState extends State<HouseholdEntryScreen> {
         "age": parseAge(hofAgeController.text),
         "marital_status": hofMaritalStatus,
         "is_shg_member": hofIsShgMember,
-        "shg_name_or_code":
-            hofIsShgMember ? hofShgController.text.trim() : null,
+        "shg_name_or_code": hofIsShgMember ? hofShgController.text.trim() : null,
         "special_group": hofIsSpecialGroup ? hofSpecialGroup : null,
         "is_job_card_holder": hofIsJobCardHolder,
         "is_pwd": specialGroupIsPwd(hofSpecialGroup),
@@ -308,6 +304,8 @@ class _HouseholdEntryScreenState extends State<HouseholdEntryScreen> {
         final i = entry.key;
         final member = Map<String, dynamic>.from(entry.value);
 
+        member["device_member_ref"] ??= offlineService.newDeviceRef('mem');
+
         return {
           ...member,
           "sort_order": i + 2,
@@ -319,35 +317,24 @@ class _HouseholdEntryScreenState extends State<HouseholdEntryScreen> {
       isSaving = true;
     });
 
-    bool savedOnline = false;
-    bool savedOffline = false;
-    String? remoteError;
-
     try {
-      if (canReachServer) {
-        await remoteService
-            .saveHouseholdSurvey(
-              household: householdPayload,
-              members: allMembers,
-            )
-            .timeout(const Duration(seconds: 15));
-
-        savedOnline = true;
-      } else {
-        await offlineService.saveHouseholdSurvey(
-          household: householdPayload,
-          members: allMembers,
-        );
-        savedOffline = true;
-      }
-    } catch (e) {
-      remoteError = readableError(e);
-
       await offlineService.saveHouseholdSurvey(
         household: householdPayload,
         members: allMembers,
       );
-      savedOffline = true;
+      await refreshPendingCount();
+      await refreshConnectionState(showSnack: false);
+      clearForm();
+
+      if (!mounted) return;
+      showAppSnack('Saved offline securely. Will sync automatically when possible.');
+
+      if (isOnline) {
+        unawaited(syncPending(silent: true));
+      }
+    } catch (e) {
+      if (!mounted) return;
+      showAppSnack('Failed to save locally: ${readableError(e)}', isError: true);
     } finally {
       if (mounted) {
         setState(() {
@@ -355,34 +342,19 @@ class _HouseholdEntryScreenState extends State<HouseholdEntryScreen> {
         });
       }
     }
-
-    await refreshPendingCount();
-    await refreshConnectionState(showSnack: false);
-    clearForm();
-
-    if (!mounted) return;
-
-    if (savedOnline) {
-      showAppSnack('Household saved to server');
-    } else if (savedOffline) {
-      showAppSnack(
-        remoteError == null
-            ? 'Saved offline. Sync later from the banner or menu.'
-            : 'Server save failed: $remoteError. Saved offline instead.',
-        isError: false,
-      );
-    }
   }
 
-  Future<void> syncPending() async {
+  Future<void> syncPending({bool silent = false}) async {
     if (isSyncing || pendingCount == 0) return;
 
     final canReachServer = await refreshConnectionState(showSnack: false);
     if (!canReachServer) {
-      showAppSnack(
-        'Server not reachable. Pending households remain offline.',
-        isError: true,
-      );
+      if (!silent) {
+        showAppSnack(
+          'Server not reachable. Pending households remain offline.',
+          isError: true,
+        );
+      }
       return;
     }
 
@@ -400,21 +372,25 @@ class _HouseholdEntryScreenState extends State<HouseholdEntryScreen> {
       final uploaded = result["uploaded"] ?? 0;
       final failed = result["failed"] ?? 0;
 
-      if (failed == 0) {
-        showAppSnack('$uploaded household(s) synced successfully');
-      } else {
-        showAppSnack(
-          '$uploaded synced, $failed failed.',
-          isError: true,
-        );
+      if (!silent) {
+        if (failed == 0) {
+          showAppSnack('$uploaded household(s) synced successfully');
+        } else {
+          showAppSnack(
+            '$uploaded synced, $failed failed.',
+            isError: true,
+          );
+        }
       }
     } catch (e) {
       if (!mounted) return;
 
-      showAppSnack(
-        'Sync failed: ${readableError(e)}',
-        isError: true,
-      );
+      if (!silent) {
+        showAppSnack(
+          'Sync failed: ${readableError(e)}',
+          isError: true,
+        );
+      }
     } finally {
       if (mounted) {
         setState(() {
@@ -633,6 +609,7 @@ class _HouseholdEntryScreenState extends State<HouseholdEntryScreen> {
     final pendingText = pendingCount == 1
         ? '1 household pending'
         : '$pendingCount households pending';
+    final failedCount = offlineService.getFailedCount();
 
     return Drawer(
       child: SafeArea(
@@ -682,7 +659,7 @@ class _HouseholdEntryScreenState extends State<HouseholdEntryScreen> {
             ListTile(
               leading: const Icon(Icons.sync_rounded),
               title: const Text('Sync offline households'),
-              subtitle: Text(pendingText),
+              subtitle: Text('$pendingText • $failedCount failed'),
               trailing: isSyncing
                   ? const SizedBox(
                       width: 18,
@@ -695,6 +672,20 @@ class _HouseholdEntryScreenState extends State<HouseholdEntryScreen> {
                 await syncPending();
               },
             ),
+
+
+            ListTile(
+              leading: const Icon(Icons.refresh_rounded),
+              title: const Text('Retry failed submissions'),
+              subtitle: const Text('Moves transient failures back to pending'),
+              onTap: () async {
+                Navigator.pop(context);
+                await syncService.retryFailedNow();
+                await refreshPendingCount();
+                await syncPending();
+              },
+            ),
+
             ListTile(
               leading: const Icon(Icons.restart_alt_rounded),
               title: const Text('Change location'),

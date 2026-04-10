@@ -1,97 +1,203 @@
 // lib/core/services/offline_survey_service.dart
-import 'dart:math';
 import 'package:flutter/foundation.dart';
 import 'package:hive_flutter/hive_flutter.dart';
+import 'package:uuid/uuid.dart';
+
+import '../sync/survey_payload_builder.dart';
+import '../sync/sync_types.dart';
 
 class OfflineSurveyService {
   static const String boxName = 'offline_surveys';
+  static const _uuid = Uuid();
+
+  final SurveyPayloadBuilder _payloadBuilder;
+
+  OfflineSurveyService({SurveyPayloadBuilder? payloadBuilder})
+      : _payloadBuilder = payloadBuilder ?? const SurveyPayloadBuilder();
 
   Box get _box => Hive.box(boxName);
 
-  String _generateId() {
-    return DateTime.now().microsecondsSinceEpoch.toString() +
-        Random().nextInt(99999).toString();
-  }
+  String newDeviceRef(String prefix) => '${prefix}_${_uuid.v4()}';
 
   Future<String> saveHouseholdSurvey({
     required Map<String, dynamic> household,
     required List<Map<String, dynamic>> members,
   }) async {
-    final localId = household["device_household_ref"]?.toString() ?? _generateId();
-    final nowIso = DateTime.now().toIso8601String();
-    final existing = _box.get(localId);
-    final existingMap = existing is Map ? Map<String, dynamic>.from(existing) : null;
+    final now = DateTime.now().toUtc();
+    final householdCopy = Map<String, dynamic>.from(household);
 
-    await _box.put(localId, {
-      "id": localId,
-      "household": household,
-      "members": members,
-      "uploaded": false,
-      "last_error": existingMap?["last_error"],
-      "sync_attempts": existingMap?["sync_attempts"] ?? 0,
-      "type": "household_survey",
-      "created_at": existingMap?["created_at"] ?? nowIso,
-      "updated_at": nowIso,
-    });
+    householdCopy['device_household_ref'] ??= newDeviceRef('hh');
 
-    debugPrint("💾 Household saved offline: $localId");
-    return localId;
+    final stableMembers = members.asMap().entries.map((entry) {
+      final original = Map<String, dynamic>.from(entry.value);
+      original['device_member_ref'] ??= newDeviceRef('mem');
+      original['sort_order'] ??= entry.key + 1;
+      return original;
+    }).toList(growable: false);
+
+    final localSubmissionUuid = _uuid.v4();
+    final record = {
+      'local_submission_uuid': localSubmissionUuid,
+      'device_household_ref': householdCopy['device_household_ref'],
+      'household': householdCopy,
+      'members': stableMembers,
+      'local_created_at': now.toIso8601String(),
+      'local_updated_at': now.toIso8601String(),
+      'sync_status': SyncStatusCodec.encode(SyncStatus.pending),
+      'sync_attempt_count': 0,
+      'last_sync_attempt_at': null,
+      'synced_at': null,
+      'last_error_code': SyncErrorCodeCodec.encode(SyncErrorCode.none),
+      'last_error_message': null,
+      'next_retry_at': null,
+      'payload_hash': _payloadBuilder.payloadHash({
+        'household': householdCopy,
+        'members': stableMembers,
+      }),
+      'schema_version': 1,
+      'type': 'household_submission',
+    };
+
+    _payloadBuilder.validateAndBuild(submission: record);
+    await _box.put(localSubmissionUuid, record);
+    SyncLog.info('Saved submission locally: $localSubmissionUuid');
+    return localSubmissionUuid;
   }
 
-  List<Map<String, dynamic>> getPending() {
+  List<Map<String, dynamic>> listAll() {
     return _box.values
-        .where((e) => e is Map && e["uploaded"] == false)
+        .whereType<Map>()
         .map((e) => Map<String, dynamic>.from(e))
-        .toList();
+        .toList(growable: false)
+      ..sort((a, b) {
+        final aTime = DateTime.tryParse('${a['local_created_at']}');
+        final bTime = DateTime.tryParse('${b['local_created_at']}');
+        if (aTime == null || bTime == null) return 0;
+        return aTime.compareTo(bTime);
+      });
+  }
+
+  List<Map<String, dynamic>> getReadyToSync({DateTime? now}) {
+    final current = (now ?? DateTime.now().toUtc());
+    return listAll().where((item) {
+      final status = SyncStatusCodec.decode(item['sync_status']);
+      if (status == SyncStatus.pending) {
+        return true;
+      }
+      if (status == SyncStatus.failedTransient) {
+        final nextRetryAtRaw = item['next_retry_at']?.toString();
+        final retryAt =
+            nextRetryAtRaw == null ? null : DateTime.tryParse(nextRetryAtRaw);
+        return retryAt == null || !retryAt.isAfter(current);
+      }
+      return false;
+    }).toList(growable: false);
   }
 
   int getPendingCount() {
-    return _box.values
-        .where((e) => e is Map && e["uploaded"] == false)
-        .length;
+    return listAll().where((item) {
+      final status = SyncStatusCodec.decode(item['sync_status']);
+      return status == SyncStatus.pending ||
+          status == SyncStatus.syncing ||
+          status == SyncStatus.failedTransient;
+    }).length;
   }
 
-  Future<void> markUploaded(String id) async {
-    final data = _box.get(id);
-    if (data == null) return;
-
-    final map = Map<String, dynamic>.from(data);
-    map["uploaded"] = true;
-
-    await _box.put(id, map);
+  int getFailedCount() {
+    return listAll().where((item) {
+      final status = SyncStatusCodec.decode(item['sync_status']);
+      return status == SyncStatus.failedTransient ||
+          status == SyncStatus.failedPermanent;
+    }).length;
   }
 
-    Future<void> markFailed({
-    required String id,
-    required String error,
+  Future<void> markSyncing(String localSubmissionUuid) async {
+    final record = _read(localSubmissionUuid);
+    if (record == null) return;
+
+    record['sync_status'] = SyncStatusCodec.encode(SyncStatus.syncing);
+    record['sync_attempt_count'] = (record['sync_attempt_count'] as int? ?? 0) + 1;
+    record['last_sync_attempt_at'] = DateTime.now().toUtc().toIso8601String();
+    record['local_updated_at'] = DateTime.now().toUtc().toIso8601String();
+
+    await _box.put(localSubmissionUuid, record);
+  }
+
+  Future<void> markSynced(String localSubmissionUuid) async {
+    final record = _read(localSubmissionUuid);
+    if (record == null) return;
+
+    record['sync_status'] = SyncStatusCodec.encode(SyncStatus.synced);
+    record['synced_at'] = DateTime.now().toUtc().toIso8601String();
+    record['last_error_code'] = SyncErrorCodeCodec.encode(SyncErrorCode.none);
+    record['last_error_message'] = null;
+    record['next_retry_at'] = null;
+    record['local_updated_at'] = DateTime.now().toUtc().toIso8601String();
+
+    await _box.put(localSubmissionUuid, record);
+  }
+
+  Future<void> markFailed({
+    required String localSubmissionUuid,
+    required SyncErrorCode code,
+    required String message,
+    required bool permanent,
+    String? nextRetryAt,
   }) async {
-    final data = _box.get(id);
-    if (data is! Map) return;
+    final record = _read(localSubmissionUuid);
+    if (record == null) return;
 
-    final map = Map<String, dynamic>.from(data);
-    map["uploaded"] = false;
-    map["last_error"] = error;
-    map["sync_attempts"] = ((map["sync_attempts"] as num?)?.toInt() ?? 0) + 1;
-    map["updated_at"] = DateTime.now().toIso8601String();
+    record['sync_status'] = SyncStatusCodec.encode(
+      permanent ? SyncStatus.failedPermanent : SyncStatus.failedTransient,
+    );
+    record['last_error_code'] = SyncErrorCodeCodec.encode(code);
+    record['last_error_message'] = message;
+    record['next_retry_at'] = permanent ? null : nextRetryAt;
+    record['local_updated_at'] = DateTime.now().toUtc().toIso8601String();
 
-    await _box.put(id, map);
+    await _box.put(localSubmissionUuid, record);
   }
+  Future<void> resetStaleSyncing({Duration maxStale = const Duration(minutes: 5)}) async {
+    final now = DateTime.now().toUtc();
+    for (final item in listAll()) {
+      if (SyncStatusCodec.decode(item['sync_status']) != SyncStatus.syncing) {
+        continue;
+      }
 
-
-  Future<void> clearUploaded() async {
-    final keysToDelete = <dynamic>[];
-
-    for (final key in _box.keys) {
-      final value = _box.get(key);
-      if (value is Map && value["uploaded"] == true) {
-        keysToDelete.add(key);
+      final lastAttemptRaw = item['last_sync_attempt_at']?.toString();
+      final lastAttempt =
+          lastAttemptRaw == null ? null : DateTime.tryParse(lastAttemptRaw);
+      if (lastAttempt == null || now.difference(lastAttempt) >= maxStale) {
+        final id = item['local_submission_uuid']?.toString();
+        if (id == null || id.isEmpty) continue;
+        item['sync_status'] = SyncStatusCodec.encode(SyncStatus.pending);
+        item['local_updated_at'] = now.toIso8601String();
+        await _box.put(id, item);
       }
     }
+  }
+  Future<void> retryAllFailedTransientNow() async {
+    for (final item in listAll()) {
+      if (SyncStatusCodec.decode(item['sync_status']) != SyncStatus.failedTransient) {
+        continue;
+      }
+      final id = item['local_submission_uuid']?.toString();
+      if (id == null || id.isEmpty) continue;
 
-    await _box.deleteAll(keysToDelete);
+      item['sync_status'] = SyncStatusCodec.encode(SyncStatus.pending);
+      item['next_retry_at'] = null;
+      item['local_updated_at'] = DateTime.now().toUtc().toIso8601String();
+      await _box.put(id, item);
+    }
   }
 
-  Future<void> clearAll() async {
-    await _box.clear();
+  Map<String, dynamic>? _read(String localSubmissionUuid) {
+    final existing = _box.get(localSubmissionUuid);
+    if (existing is! Map) {
+      return null;
+    }
+    return Map<String, dynamic>.from(existing);
   }
+
+  Future<void> clearAll() async => _box.clear();
 }
