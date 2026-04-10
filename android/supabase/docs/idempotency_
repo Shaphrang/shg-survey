@@ -1,0 +1,32 @@
+# Idempotency Design
+
+## Why idempotency is mandatory
+Field devices retry aggressively during unstable connectivity. Without idempotency:
+- duplicate submits can create conflicting states,
+- acknowledgements become ambiguous,
+- clients cannot safely decide whether to mark records synced.
+
+## Two identities with different purpose
+1. `device_household_ref`
+   - Identity of household entity.
+   - Used for upsert semantics (create/update household over time).
+
+2. `submission_uuid`
+   - Identity of a single logical submission attempt.
+   - Used for replay-safe dedup and deterministic acknowledgement.
+
+## Replay semantics
+- First processing of `submission_uuid` writes household+members atomically and stores receipt.
+- Replay of same UUID and same payload returns `already_processed` success.
+- Replay of same UUID with different payload is rejected as unsafe.
+
+## Risks prevented
+- Duplicate row churn from repeated retries.
+- False negatives where client retries after timeout and accidentally re-processes silently.
+- Ambiguous server acknowledgement under packet loss.
+- Difficulty distinguishing legitimate household update vs accidental replay.
+
+## Practical guidance
+- Client must persist `submission_uuid` with durable outbox record.
+- Retries must reuse same `submission_uuid` and stable device refs.
+- Fresh user edits should create new `submission_uuid`.
