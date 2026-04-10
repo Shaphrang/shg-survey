@@ -1,5 +1,6 @@
 //lib\features\survey\remote\master_service.dart
 import 'package:supabase_flutter/supabase_flutter.dart';
+import '../utils/location_sorting.dart';
 
 class MasterService {
   final supabase = Supabase.instance.client;
@@ -10,7 +11,7 @@ class MasterService {
         .select('id, name')
         .order('name');
 
-    return List<Map<String, dynamic>>.from(data);
+    return LocationSorting.sortByName(List<Map<String, dynamic>>.from(data));
   }
 
   Future<List<Map<String, dynamic>>> fetchBlocks() async {
@@ -19,7 +20,7 @@ class MasterService {
         .select('id, name, district_id')
         .order('name');
 
-    return List<Map<String, dynamic>>.from(data);
+    return LocationSorting.sortByName(List<Map<String, dynamic>>.from(data));
   }
 
   Future<List<Map<String, dynamic>>> fetchVillages() async {
@@ -41,6 +42,6 @@ class MasterService {
       from += batchSize;
     }
 
-    return allData;
+    return LocationSorting.sortByName(allData);
   }
 }

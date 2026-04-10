@@ -1,5 +1,7 @@
 // lib/features/survey/controller/location_controller.dart
 import '../../../core/services/master_data_service.dart';
+import '../utils/location_sorting.dart';
+
 
 class LocationController {
   final MasterDataService cache = MasterDataService();
@@ -9,9 +11,9 @@ class LocationController {
   List<Map<String, dynamic>> villages = [];
 
   Future<void> load() async {
-    districts = cache.getDistricts();
-    blocks = cache.getBlocks();
-    villages = cache.getVillages();
+    districts = LocationSorting.sortByName(cache.getDistricts());
+    blocks = LocationSorting.sortByName(cache.getBlocks());
+    villages = LocationSorting.sortByName(cache.getVillages());
 
     final needsSync = districts.isEmpty ||
         blocks.isEmpty ||
@@ -21,22 +23,26 @@ class LocationController {
     if (needsSync) {
       await cache.syncMasterData();
 
-      districts = cache.getDistricts();
-      blocks = cache.getBlocks();
-      villages = cache.getVillages();
+      districts = LocationSorting.sortByName(cache.getDistricts());
+      blocks = LocationSorting.sortByName(cache.getBlocks());
+      villages = LocationSorting.sortByName(cache.getVillages());
     }
   }
 
   List<Map<String, dynamic>> getBlocksByDistrict(String districtId) {
-    return blocks.where((b) => b['district_id'] == districtId).toList();
+    return LocationSorting.sortByName(
+      blocks.where((b) => b['district_id'] == districtId).toList(),
+    );
   }
 
   List<Map<String, dynamic>> getVillages(String districtId, String blockId) {
-    return villages
-        .where(
-          (v) =>
-              v['district_id'] == districtId && v['block_id'] == blockId,
-        )
-        .toList();
+    return LocationSorting.sortByName(
+      villages
+          .where(
+            (v) =>
+                v['district_id'] == districtId && v['block_id'] == blockId,
+          )
+          .toList(),
+    );
   }
 }

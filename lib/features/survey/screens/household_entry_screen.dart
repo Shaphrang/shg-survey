@@ -11,6 +11,7 @@ import '../../../core/services/offline_survey_service.dart';
 import '../../../core/services/sync_service.dart';
 import '../remote/household_remote_service.dart';
 import 'location_setup_screen.dart';
+import '../widgets/survey_yes_no_field.dart';
 
 class HouseholdEntryScreen extends StatefulWidget {
   const HouseholdEntryScreen({super.key});
@@ -452,6 +453,7 @@ class _HouseholdEntryScreenState extends State<HouseholdEntryScreen> {
   }
 
   void clearForm() {
+    FocusManager.instance.primaryFocus?.unfocus();
     setState(() {
       hofNameController.clear();
       hofGuardianSpecifyController.clear();
@@ -472,6 +474,18 @@ class _HouseholdEntryScreenState extends State<HouseholdEntryScreen> {
 
       members.clear();
     });
+  }
+
+  Future<void> onPullToRefresh() async {
+    FocusManager.instance.primaryFocus?.unfocus();
+    await Future.wait([
+      refreshPendingCount(),
+      refreshConnectionState(showSnack: false),
+    ]);
+
+    if (mounted) {
+      setState(() {});
+    }
   }
 
   void showAppSnack(String message, {bool isError = false}) {
@@ -509,7 +523,7 @@ class _HouseholdEntryScreenState extends State<HouseholdEntryScreen> {
 
   String get saveButtonSubtitle {
     return isOnline
-        ? 'Direct save to Supabase'
+        ? 'Direct save to Server'
         : 'Stored locally and queued for sync';
   }
 
@@ -519,7 +533,7 @@ class _HouseholdEntryScreenState extends State<HouseholdEntryScreen> {
       key: scaffoldKey,
       drawer: buildAppDrawer(),
       appBar: AppBar(
-        title: const Text("Household Entry"),
+        title: const Text("MSRLS Survey"),
         actions: [
           IconButton(
             tooltip: "Clear All",
@@ -595,15 +609,19 @@ class _HouseholdEntryScreenState extends State<HouseholdEntryScreen> {
         children: [
           if (pendingCount > 0) buildPendingBanner(),
           Expanded(
-            child: ListView(
-              padding: const EdgeInsets.fromLTRB(18, 14, 18, 120),
-              children: [
-                buildHeaderCard(),
-                const SizedBox(height: 18),
-                buildHofCard(),
-                const SizedBox(height: 18),
-                buildMembersCard(),
-              ],
+            child: RefreshIndicator(
+              onRefresh: onPullToRefresh,
+              child: ListView(
+                physics: const AlwaysScrollableScrollPhysics(),
+                padding: const EdgeInsets.fromLTRB(18, 14, 18, 120),
+                children: [
+                  buildHeaderCard(),
+                  const SizedBox(height: 18),
+                  buildHofCard(),
+                  const SizedBox(height: 18),
+                  buildMembersCard(),
+                ],
+              ),
             ),
           ),
         ],
@@ -775,8 +793,7 @@ class _HouseholdEntryScreenState extends State<HouseholdEntryScreen> {
     );
   }
 
-
-Widget buildHeaderCard() {
+  Widget buildHeaderCard() {
   final district = (session["district_name"] ?? "-").toString();
   final block = (session["block_name"] ?? "-").toString();
   final village = (session["village_name"] ?? "-").toString();
@@ -1030,6 +1047,38 @@ Widget _buildSoftGlow({
   );
 }
 
+  Widget buildLocationPill(IconData icon, String label) {
+  return Container(
+    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+    decoration: BoxDecoration(
+      color: const Color(0xFFF8FAFC),
+      borderRadius: BorderRadius.circular(12),
+      border: Border.all(
+        color: const Color(0xFF0F6FFF).withOpacity(0.08),
+      ),
+    ),
+    child: Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Icon(
+          icon,
+          size: 14,
+          color: const Color(0xFF0F6FFF),
+        ),
+        const SizedBox(width: 6),
+        Text(
+          label,
+          style: const TextStyle(
+            fontSize: 12,
+            fontWeight: FontWeight.w500,
+            color: Color(0xFF334155),
+          ),
+        ),
+      ],
+    ),
+  );
+}
+
   Widget buildHofCard() {
     return buildSectionCard(
       title: "Head of Family",
@@ -1062,16 +1111,16 @@ Widget _buildSoftGlow({
               });
             },
           ),
-          if (hofType == 'guardian') ...[
-            const SizedBox(height: 16),
-            TextField(
+          buildAnimatedConditional(
+            show: hofType == 'guardian',
+            child: TextField(
               controller: hofGuardianSpecifyController,
               decoration: const InputDecoration(
                 labelText: "If guardian, specify",
                 prefixIcon: Icon(Icons.badge_rounded),
               ),
             ),
-          ],
+          ),
           const SizedBox(height: 16),
           buildSegmentedSelection(
             title: "Gender",
@@ -1117,7 +1166,7 @@ Widget _buildSoftGlow({
             },
           ),
           const SizedBox(height: 16),
-          buildYesNoField(
+          SurveyYesNoField(
             title: "Part of SHG",
             value: hofIsShgMember,
             onChanged: (value) {
@@ -1129,18 +1178,18 @@ Widget _buildSoftGlow({
               });
             },
           ),
-          if (hofIsShgMember) ...[
-            const SizedBox(height: 16),
-            TextField(
+          buildAnimatedConditional(
+            show: hofIsShgMember,
+            child: TextField(
               controller: hofShgController,
               decoration: const InputDecoration(
                 labelText: "SHG Name / Code",
                 prefixIcon: Icon(Icons.groups_rounded),
               ),
             ),
-          ],
+          ),
           const SizedBox(height: 16),
-          buildYesNoField(
+          SurveyYesNoField(
             title: "Is part of a special group",
             value: hofIsSpecialGroup,
             onChanged: (value) {
@@ -1152,9 +1201,9 @@ Widget _buildSoftGlow({
               });
             },
           ),
-          if (hofIsSpecialGroup) ...[
-            const SizedBox(height: 16),
-            DropdownButtonFormField<String>(
+          buildAnimatedConditional(
+            show: hofIsSpecialGroup,
+            child: DropdownButtonFormField<String>(
               initialValue: hofSpecialGroup,
               decoration: const InputDecoration(
                 labelText: "Special Group Type",
@@ -1174,9 +1223,9 @@ Widget _buildSoftGlow({
                 });
               },
             ),
-          ],
+          ),
           const SizedBox(height: 16),
-          buildYesNoField(
+          SurveyYesNoField(
             title: "Job Card Holder",
             value: hofIsJobCardHolder,
             onChanged: (value) {
@@ -1186,7 +1235,7 @@ Widget _buildSoftGlow({
             },
           ),
           const SizedBox(height: 16),
-          buildYesNoField(
+          SurveyYesNoField(
             title: "Has Aadhaar",
             value: hofHasAadhaar,
             onChanged: (value) {
@@ -1198,9 +1247,9 @@ Widget _buildSoftGlow({
               });
             },
           ),
-          if (hofHasAadhaar) ...[
-            const SizedBox(height: 16),
-            TextField(
+          buildAnimatedConditional(
+            show: hofHasAadhaar,
+            child: TextField(
               controller: hofAadhaarController,
               keyboardType: TextInputType.number,
               maxLength: 12,
@@ -1210,9 +1259,9 @@ Widget _buildSoftGlow({
                 counterText: "",
               ),
             ),
-          ],
+          ),
           const SizedBox(height: 16),
-          buildYesNoField(
+          SurveyYesNoField(
             title: "Has EPIC",
             value: hofHasEpic,
             onChanged: (value) {
@@ -1224,16 +1273,16 @@ Widget _buildSoftGlow({
               });
             },
           ),
-          if (hofHasEpic) ...[
-            const SizedBox(height: 16),
-            TextField(
+          buildAnimatedConditional(
+            show: hofHasEpic,
+            child: TextField(
               controller: hofEpicController,
               decoration: const InputDecoration(
                 labelText: "EPIC Number",
                 prefixIcon: Icon(Icons.how_to_vote_rounded),
               ),
             ),
-          ],
+          ),
         ],
       ),
     );
@@ -1459,6 +1508,7 @@ Widget _buildSoftGlow({
     required String title,
     required List<ChoiceOption> options,
     required String? selectedValue,
+    String? errorText,
     required ValueChanged<String> onSelected,
   }) {
     return LayoutBuilder(
@@ -1524,81 +1574,43 @@ Widget _buildSoftGlow({
                 );
               }).toList(),
             ),
+                        if (errorText != null) ...[
+              const SizedBox(height: 6),
+              Align(
+                alignment: Alignment.centerLeft,
+                child: Text(
+                  errorText,
+                  style: const TextStyle(
+                    color: Color(0xFFDC2626),
+                    fontSize: 12,
+                  ),
+                ),
+              ),
+            ],
           ],
         );
       },
     );
   }
 
-  Widget buildYesNoField({
-    required String title,
-    required bool value,
-    required ValueChanged<bool> onChanged,
+  Widget buildAnimatedConditional({
+    required bool show,
+    required Widget child,
   }) {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: const Color(0xFFF8FAFC),
-        borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: const Color(0xFFE2E8F0)),
-      ),
-      child: Row(
-        children: [
-          Expanded(
-            child: Text(
-              title,
-              style: const TextStyle(
-                fontWeight: FontWeight.w700,
-                color: Color(0xFF0F172A),
-              ),
-            ),
-          ),
-          const SizedBox(width: 10),
-          _buildBooleanChip(
-            label: 'YES',
-            selected: value,
-            onTap: () => onChanged(true),
-          ),
-          const SizedBox(width: 8),
-          _buildBooleanChip(
-            label: 'NO',
-            selected: !value,
-            onTap: () => onChanged(false),
-          ),
-        ],
-      ),
+    return AnimatedSwitcher(
+      duration: const Duration(milliseconds: 180),
+      switchInCurve: Curves.easeOutCubic,
+      switchOutCurve: Curves.easeInCubic,
+      child: show
+          ? Padding(
+              key: ValueKey<bool>(show),
+              padding: const EdgeInsets.only(top: 16),
+              child: child,
+            )
+          : const SizedBox.shrink(key: ValueKey<bool>(false)),
     );
   }
 
-  Widget _buildBooleanChip({
-    required String label,
-    required bool selected,
-    required VoidCallback onTap,
-  }) {
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(12),
-      child: Ink(
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 9),
-        decoration: BoxDecoration(
-          color: selected ? const Color(0xFFDCEBFF) : Colors.white,
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(
-            color: selected ? const Color(0xFF0F6FFF) : const Color(0xFFE2E8F0),
-          ),
-        ),
-        child: Text(
-          label,
-          style: TextStyle(
-            color: selected ? const Color(0xFF0F6FFF) : const Color(0xFF475569),
-            fontWeight: FontWeight.w800,
-            fontSize: 12,
-          ),
-        ),
-      ),
-    );
-  }
 }
 
 class ChoiceOption {
@@ -1606,6 +1618,63 @@ class ChoiceOption {
   final String label;
 
   const ChoiceOption(this.value, this.label);
+}
+
+class _LocationChip extends StatelessWidget {
+  final String label;
+  final String value;
+  final IconData icon;
+
+  const _LocationChip({
+    required this.label,
+    required this.value,
+    required this.icon,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      constraints: const BoxConstraints(minWidth: 150),
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF8FAFC),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: const Color(0xFFE2E8F0)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+                    Icon(icon, size: 16, color: const Color(0xFF475569)),
+          const SizedBox(width: 6),
+          Flexible(
+            child: RichText(
+              overflow: TextOverflow.ellipsis,
+              text: TextSpan(
+                children: [
+                  TextSpan(
+                    text: '$label: ',
+                    style: const TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w700,
+                      color: Color(0xFF1E293B),
+                    ),
+                  ),
+                  TextSpan(
+                    text: value,
+                    style: const TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w500,
+                      color: Color(0xFF475569),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
 }
 
 class MemberFormSheet extends StatefulWidget {
@@ -1621,6 +1690,7 @@ class MemberFormSheet extends StatefulWidget {
 }
 
 class _MemberFormSheetState extends State<MemberFormSheet> {
+  final GlobalKey<FormState> formKey = GlobalKey<FormState>();
   static const List<String> relationshipOptions = [
     'spouse',
     'son',
@@ -1664,6 +1734,11 @@ class _MemberFormSheetState extends State<MemberFormSheet> {
   bool isSpecialGroup = false;
   bool hasAadhaar = false;
   bool hasEpic = false;
+  bool hasSubmitted = false;
+
+  String? relationshipError;
+  String? genderError;
+  String? maritalStatusError;
 
   @override
   void initState() {
@@ -1700,53 +1775,27 @@ class _MemberFormSheetState extends State<MemberFormSheet> {
     super.dispose();
   }
 
-  String? validateMember() {
-    if (relationship == null) return 'Please select relationship';
-    if (nameController.text.trim().isEmpty) return 'Please enter member name';
-    if (gender == null) return 'Please select gender';
-
-    final age = int.tryParse(ageController.text.trim());
-    if (age == null || age < 0 || age > 130) {
-      return 'Please enter valid age';
-    }
-
-    if (maritalStatus == null) return 'Please select marital status';
-
-    if (isShgMember && shgController.text.trim().isEmpty) {
-      return 'Please enter SHG name or code';
-    }
-
-    if (isSpecialGroup && specialGroup == null) {
-      return 'Please select special group type';
-    }
-
-    if (hasAadhaar &&
-        !RegExp(r'^\d{12}$').hasMatch(aadhaarController.text.trim())) {
-      return 'Aadhaar must be 12 digits';
-    }
-
-    if (hasEpic && epicController.text.trim().isEmpty) {
-      return 'Please enter EPIC number';
-    }
-
-    return null;
-  }
-
+  
   bool specialGroupIsPwd(String? value) {
     return value == 'PWD';
   }
 
   void submit() {
-    final error = validateMember();
+        final valid = formKey.currentState?.validate() ?? false;
 
-    if (error != null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          backgroundColor: const Color(0xFFDC2626),
-          behavior: SnackBarBehavior.floating,
-          content: Text(error),
-        ),
-      );
+    setState(() {
+      hasSubmitted = true;
+      relationshipError =
+          relationship == null ? 'Please select relationship' : null;
+      genderError = gender == null ? 'Please select gender' : null;
+      maritalStatusError =
+          maritalStatus == null ? 'Please select marital status' : null;
+    });
+
+    if (!valid ||
+        relationshipError != null ||
+        genderError != null ||
+        maritalStatusError != null) {
       return;
     }
 
@@ -1778,51 +1827,47 @@ class _MemberFormSheetState extends State<MemberFormSheet> {
         color: Color(0xFFF5F7FB),
         borderRadius: BorderRadius.vertical(top: Radius.circular(30)),
       ),
-      child: Padding(
-        padding: EdgeInsets.fromLTRB(
-          18,
-          10,
-          18,
-          MediaQuery.of(context).viewInsets.bottom + 20,
-        ),
-        child: SingleChildScrollView(
+      child: SafeArea(
+        top: false,
+        child: AnimatedPadding(
+          duration: const Duration(milliseconds: 180),
+          padding: EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom),
           child: Column(
             children: [
+              const SizedBox(height: 10),
               Container(
                 width: 52,
                 height: 5,
-                margin: const EdgeInsets.only(bottom: 14),
+                margin: const EdgeInsets.only(bottom: 12),
                 decoration: BoxDecoration(
                   color: const Color(0xFFCBD5E1),
                   borderRadius: BorderRadius.circular(99),
                 ),
               ),
               Container(
+                margin: const EdgeInsets.symmetric(horizontal: 18),
                 width: double.infinity,
-                padding: const EdgeInsets.all(18),
+                padding: const EdgeInsets.all(16),
                 decoration: BoxDecoration(
                   gradient: const LinearGradient(
                     colors: [Color(0xFF7C3AED), Color(0xFF2563EB)],
                   ),
-                  borderRadius: BorderRadius.circular(24),
+                  borderRadius: BorderRadius.circular(22),
                 ),
                 child: Row(
                   children: [
                     CircleAvatar(
-                      radius: 22,
+                      radius: 20,
                       backgroundColor: Colors.white.withOpacity(0.18),
-                      child: const Icon(
-                        Icons.person_add_alt_1_rounded,
-                        color: Colors.white,
-                      ),
+                      child: const Icon(Icons.person_add_alt_1_rounded, color: Colors.white),
                     ),
-                    const SizedBox(width: 12),
+                    const SizedBox(width: 10),
                     Expanded(
                       child: Text(
                         isEditing ? "Edit Member" : "Add Member",
                         style: const TextStyle(
                           color: Colors.white,
-                          fontSize: 20,
+                          fontSize: 19,
                           fontWeight: FontWeight.w800,
                         ),
                       ),
@@ -1830,240 +1875,274 @@ class _MemberFormSheetState extends State<MemberFormSheet> {
                   ],
                 ),
               ),
-              const SizedBox(height: 16),
-              Container(
-                padding: const EdgeInsets.all(18),
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(24),
-                ),
-                child: Column(
-                  children: [
-                    DropdownButtonFormField<String>(
-                      initialValue: relationship,
-                      decoration: const InputDecoration(
-                        labelText: "Relationship to HOF",
-                        prefixIcon: Icon(Icons.family_restroom_rounded),
-                      ),
-                      items: relationshipOptions
-                          .map(
-                            (e) => DropdownMenuItem<String>(
-                              value: e,
-                              child: Text(formatLabel(e)),
-                            ),
-                          )
-                          .toList(),
-                      onChanged: (value) {
-                        setState(() {
-                          relationship = value;
-                        });
-                      },
-                    ),
-                    const SizedBox(height: 16),
-                    TextField(
-                      controller: nameController,
-                      decoration: const InputDecoration(
-                        labelText: "Member Name",
-                        prefixIcon: Icon(Icons.person_rounded),
-                      ),
-                    ),
-                    const SizedBox(height: 16),
-                    buildSegmentedSelection(
-                      title: "Gender",
-                      options: const [
-                        ChoiceOption('M', 'Male'),
-                        ChoiceOption('F', 'Female'),
-                      ],
-                      selectedValue: gender,
-                      onSelected: (value) {
-                        setState(() {
-                          gender = value;
-                        });
-                      },
-                    ),
-                    const SizedBox(height: 16),
-                    TextField(
-                      controller: ageController,
-                      keyboardType: TextInputType.number,
-                      decoration: const InputDecoration(
-                        labelText: "Age",
-                        prefixIcon: Icon(Icons.cake_rounded),
-                      ),
-                    ),
-                    const SizedBox(height: 16),
-                    DropdownButtonFormField<String>(
-                      initialValue: maritalStatus,
-                      decoration: const InputDecoration(
-                        labelText: "Marital Status",
-                        prefixIcon: Icon(Icons.favorite_outline_rounded),
-                      ),
-                      items: maritalOptions
-                          .map(
-                            (e) => DropdownMenuItem<String>(
-                              value: e,
-                              child: Text(e),
-                            ),
-                          )
-                          .toList(),
-                      onChanged: (value) {
-                        setState(() {
-                          maritalStatus = value;
-                        });
-                      },
-                    ),
-                    const SizedBox(height: 16),
-                    buildYesNoField(
-                      title: "Part of SHG",
-                      value: isShgMember,
-                      onChanged: (value) {
-                        setState(() {
-                          isShgMember = value;
-                          if (!value) {
-                            shgController.clear();
-                          }
-                        });
-                      },
-                    ),
-                    if (isShgMember) ...[
-                      const SizedBox(height: 16),
-                      TextField(
-                        controller: shgController,
-                        decoration: const InputDecoration(
-                          labelText: "SHG Name / Code",
-                          prefixIcon: Icon(Icons.groups_rounded),
-                        ),
-                      ),
-                    ],
-                    const SizedBox(height: 16),
-                    buildYesNoField(
-                      title: "Is part of a special group",
-                      value: isSpecialGroup,
-                      onChanged: (value) {
-                        setState(() {
-                          isSpecialGroup = value;
-                          if (!value) {
-                            specialGroup = null;
-                          }
-                        });
-                      },
-                    ),
-                    if (isSpecialGroup) ...[
-                      const SizedBox(height: 16),
-                      DropdownButtonFormField<String>(
-                        initialValue: specialGroup,
-                        decoration: const InputDecoration(
-                          labelText: "Special Group Type",
-                          prefixIcon: Icon(Icons.workspace_premium_rounded),
-                        ),
-                        items: specialGroupOptions
-                            .map(
-                              (e) => DropdownMenuItem<String>(
-                                value: e,
-                                child: Text(e),
-                              ),
-                            )
-                            .toList(),
-                        onChanged: (value) {
-                          setState(() {
-                            specialGroup = value;
-                          });
-                        },
-                      ),
-                    ],
-                    const SizedBox(height: 16),
-                    buildYesNoField(
-                      title: "Job Card Holder",
-                      value: isJobCardHolder,
-                      onChanged: (value) {
-                        setState(() {
-                          isJobCardHolder = value;
-                        });
-                      },
-                    ),
-                    const SizedBox(height: 16),
-                    buildYesNoField(
-                      title: "Has Aadhaar",
-                      value: hasAadhaar,
-                      onChanged: (value) {
-                        setState(() {
-                          hasAadhaar = value;
-                          if (!value) {
-                            aadhaarController.clear();
-                          }
-                        });
-                      },
-                    ),
-                    if (hasAadhaar) ...[
-                      const SizedBox(height: 16),
-                      TextField(
-                        controller: aadhaarController,
-                        keyboardType: TextInputType.number,
-                        maxLength: 12,
-                        decoration: const InputDecoration(
-                          labelText: "Aadhaar Number",
-                          prefixIcon: Icon(Icons.credit_card_rounded),
-                          counterText: "",
-                        ),
-                      ),
-                    ],
-                    const SizedBox(height: 16),
-                    buildYesNoField(
-                      title: "Has EPIC",
-                      value: hasEpic,
-                      onChanged: (value) {
-                        setState(() {
-                          hasEpic = value;
-                          if (!value) {
-                            epicController.clear();
-                          }
-                        });
-                      },
-                    ),
-                    if (hasEpic) ...[
-                      const SizedBox(height: 16),
-                      TextField(
-                        controller: epicController,
-                        decoration: const InputDecoration(
-                          labelText: "EPIC Number",
-                          prefixIcon: Icon(Icons.how_to_vote_rounded),
-                        ),
-                      ),
-                    ],
-                  ],
-                ),
-              ),
-              const SizedBox(height: 18),
-              Row(
-                children: [
-                  Expanded(
-                    child: OutlinedButton(
-                      onPressed: () => Navigator.pop(context),
-                      child: const Text("Cancel"),
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
+                            const SizedBox(height: 12),
+              Expanded(
+                child: SingleChildScrollView(
+                  padding: const EdgeInsets.fromLTRB(18, 0, 18, 20),
+                  child: Form(
+                    key: formKey,
+                    autovalidateMode: hasSubmitted
+                        ? AutovalidateMode.onUserInteraction
+                        : AutovalidateMode.disabled,
                     child: Container(
+                      padding: const EdgeInsets.all(18),
                       decoration: BoxDecoration(
-                        gradient: const LinearGradient(
-                          colors: [Color(0xFF0F6FFF), Color(0xFF38D39F)],
-                        ),
-                        borderRadius: BorderRadius.circular(18),
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(24),
                       ),
-                      child: ElevatedButton(
-                        onPressed: submit,
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: Colors.transparent,
-                          shadowColor: Colors.transparent,
-                        ),
-                        child: Text(
-                          isEditing ? "Update Member" : "Add Member",
-                          style: const TextStyle(color: Colors.white),
-                        ),
+                      child: Column(
+                        children: [
+                          DropdownButtonFormField<String>(
+                            initialValue: relationship,
+                            decoration: InputDecoration(
+                              labelText: "Relationship to HOF",
+                              prefixIcon: const Icon(Icons.family_restroom_rounded),
+                              errorText: relationshipError,
+                            ),
+                          
+                            items: relationshipOptions
+                                .map((e) => DropdownMenuItem<String>(
+                                      value: e,
+                                      child: Text(formatLabel(e)),
+                                    ))
+                                .toList(),
+                            onChanged: (value) {
+                              setState(() {
+                                relationship = value;
+                                relationshipError = null;
+                              });
+                            },
+                          ),
+                          const SizedBox(height: 16),
+                          TextFormField(
+                            controller: nameController,
+                            decoration: const InputDecoration(
+                              labelText: "Member Name",
+                              prefixIcon: Icon(Icons.person_rounded),
+
+                            ),
+                                                      validator: (value) => (value == null || value.trim().isEmpty)
+                                ? 'Please enter member name'
+                                : null,
+                          ),
+                          const SizedBox(height: 16),
+                          buildSegmentedSelection(
+                            title: "Gender",
+                            options: const [
+                              ChoiceOption('M', 'Male'),
+                              ChoiceOption('F', 'Female'),
+                            ],
+                            selectedValue: gender,
+                            errorText: genderError,
+                            onSelected: (value) {
+                              setState(() {
+                                gender = value;
+                                genderError = null;
+                              });
+                            },
+                          ),
+                          const SizedBox(height: 16),
+                          TextFormField(
+                            controller: ageController,
+                            keyboardType: TextInputType.number,
+                            decoration: const InputDecoration(
+                              labelText: "Age",
+                              prefixIcon: Icon(Icons.cake_rounded),
+                            ),
+                            validator: (value) {
+                              final age = int.tryParse((value ?? '').trim());
+                              if (age == null || age < 0 || age > 130) {
+                                return 'Please enter valid age';
+                              }
+                              return null;
+                            },
+                          ),
+                          const SizedBox(height: 16),
+                          DropdownButtonFormField<String>(
+                            initialValue: maritalStatus,
+                            decoration: InputDecoration(
+                              labelText: "Marital Status",
+                              prefixIcon: const Icon(Icons.favorite_outline_rounded),
+                              errorText: maritalStatusError,
+                            ),
+                            items: maritalOptions
+                                .map((e) => DropdownMenuItem<String>(value: e, child: Text(e)))
+                                .toList(),
+                            onChanged: (value) {
+                              setState(() {
+                                maritalStatus = value;
+                                maritalStatusError = null;
+                              });
+                            },
+                          ),
+                          const SizedBox(height: 16),
+                          SurveyYesNoField(
+                            title: "Part of SHG",
+                            value: isShgMember,
+                            onChanged: (value) {
+                              setState(() {
+                                isShgMember = value;
+                                if (!value) shgController.clear();
+                              });
+                            },
+                          ),
+                          buildAnimatedConditional(
+                            show: isShgMember,
+                            child: TextFormField(
+                              controller: shgController,
+                              decoration: const InputDecoration(
+                                labelText: "SHG Name / Code",
+                                prefixIcon: Icon(Icons.groups_rounded),
+                              ),
+                                                          validator: (value) {
+                                if (isShgMember && (value == null || value.trim().isEmpty)) {
+                                  return 'Please enter SHG name or code';
+                                }
+                                return null;
+                              },
+                            ),
+                          ),
+                          const SizedBox(height: 16),
+                          SurveyYesNoField(
+                            title: "Is part of a special group",
+                            value: isSpecialGroup,
+                            onChanged: (value) {
+                              setState(() {
+                                isSpecialGroup = value;
+                                if (!value) specialGroup = null;
+                              });
+                            },
+                          ),
+                          buildAnimatedConditional(
+                            show: isSpecialGroup,
+                            child: DropdownButtonFormField<String>(
+                              initialValue: specialGroup,
+                              decoration: const InputDecoration(
+                                labelText: "Special Group Type",
+                                prefixIcon: Icon(Icons.workspace_premium_rounded),
+                              ),
+                              items: specialGroupOptions
+                                  .map((e) => DropdownMenuItem<String>(value: e, child: Text(e)))
+                                  .toList(),
+                              onChanged: (value) {
+                                setState(() {
+                                  specialGroup = value;
+                                });
+                              },
+                              validator: (value) {
+                                if (isSpecialGroup && value == null) {
+                                  return 'Please select special group type';
+                                }
+                                return null;
+                              },
+                            ),
+                          ),
+                          const SizedBox(height: 16),
+                          SurveyYesNoField(
+                            title: "Job Card Holder",
+                            value: isJobCardHolder,
+                            onChanged: (value) {
+                              setState(() {
+                                isJobCardHolder = value;
+                              });
+                            },
+                          ),
+                          const SizedBox(height: 16),
+                          SurveyYesNoField(
+                            title: "Has Aadhaar",
+                            value: hasAadhaar,
+                            onChanged: (value) {
+                              setState(() {
+                                hasAadhaar = value;
+                                if (!value) aadhaarController.clear();
+                              });
+                            },
+                          ),
+                          buildAnimatedConditional(
+                            show: hasAadhaar,
+                            child: TextFormField(
+                              controller: aadhaarController,
+                              keyboardType: TextInputType.number,
+                              maxLength: 12,
+                              decoration: const InputDecoration(
+                                labelText: "Aadhaar Number",
+                                prefixIcon: Icon(Icons.credit_card_rounded),
+                                counterText: "",
+                              ),
+                              validator: (value) {
+                                if (!hasAadhaar) return null;
+                                if (!RegExp(r'^\\d{12}$').hasMatch((value ?? '').trim())) {
+                                  return 'Aadhaar must be 12 digits';
+                                }
+                                return null;
+                              },
+                            ),
+                          ),
+                          const SizedBox(height: 16),
+                          SurveyYesNoField(
+                            title: "Has EPIC",
+                            value: hasEpic,
+                            onChanged: (value) {
+                              setState(() {
+                                hasEpic = value;
+                                if (!value) epicController.clear();
+                              });
+                            },
+                          ),
+                          buildAnimatedConditional(
+                            show: hasEpic,
+                            child: TextFormField(
+                              controller: epicController,
+                              decoration: const InputDecoration(
+                                labelText: "EPIC Number",
+                                prefixIcon: Icon(Icons.how_to_vote_rounded),
+                              ),
+                              validator: (value) {
+                                if (hasEpic && (value == null || value.trim().isEmpty)) {
+                                  return 'Please enter EPIC number';
+                                }
+                                return null;
+                              },
+                            ),
+                          ),
+                          const SizedBox(height: 18),
+                          Row(
+                            children: [
+                              Expanded(
+                                child: OutlinedButton(
+                                  onPressed: () => Navigator.pop(context),
+                                  child: const Text("Cancel"),
+                                ),
+                              ),
+                              const SizedBox(width: 12),
+                              Expanded(
+                                child: Container(
+                                  decoration: BoxDecoration(
+                                    gradient: const LinearGradient(
+                                    colors: [Color(0xFF0F766E), Color(0xFF10B981)],
+                                    ),
+                                    borderRadius: BorderRadius.circular(18),
+                                  ),
+                                  child: ElevatedButton(
+                                    onPressed: submit,
+                                    style: ElevatedButton.styleFrom(
+                                      backgroundColor: Colors.transparent,
+                                      shadowColor: Colors.transparent,
+                                    ),
+                                    child: Text(
+                                      isEditing ? "Update Member" : "Add Member",
+                                      style: const TextStyle(color: Colors.white),
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ],
                       ),
                     ),
                   ),
-                ],
+                ),
               ),
             ],
           ),
@@ -2076,6 +2155,7 @@ class _MemberFormSheetState extends State<MemberFormSheet> {
     required String title,
     required List<ChoiceOption> options,
     required String? selectedValue,
+    String? errorText,
     required ValueChanged<String> onSelected,
   }) {
     return LayoutBuilder(
@@ -2141,79 +2221,40 @@ class _MemberFormSheetState extends State<MemberFormSheet> {
                 );
               }).toList(),
             ),
+                        if (errorText != null) ...[
+              const SizedBox(height: 6),
+              Align(
+                alignment: Alignment.centerLeft,
+                child: Text(
+                  errorText,
+                  style: const TextStyle(
+                    color: Color(0xFFDC2626),
+                    fontSize: 12,
+                  ),
+                ),
+              ),
+            ],
           ],
         );
       },
     );
   }
 
-  Widget buildYesNoField({
-    required String title,
-    required bool value,
-    required ValueChanged<bool> onChanged,
+    Widget buildAnimatedConditional({
+    required bool show,
+    required Widget child,
   }) {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: const Color(0xFFF8FAFC),
-        borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: const Color(0xFFE2E8F0)),
-      ),
-      child: Row(
-        children: [
-          Expanded(
-            child: Text(
-              title,
-              style: const TextStyle(
-                fontWeight: FontWeight.w700,
-                color: Color(0xFF0F172A),
-              ),
-            ),
-          ),
-          const SizedBox(width: 10),
-          _buildBooleanChip(
-            label: 'YES',
-            selected: value,
-            onTap: () => onChanged(true),
-          ),
-          const SizedBox(width: 8),
-          _buildBooleanChip(
-            label: 'NO',
-            selected: !value,
-            onTap: () => onChanged(false),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildBooleanChip({
-    required String label,
-    required bool selected,
-    required VoidCallback onTap,
-  }) {
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(12),
-      child: Ink(
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 9),
-        decoration: BoxDecoration(
-          color: selected ? const Color(0xFFDCEBFF) : Colors.white,
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(
-            color: selected ? const Color(0xFF0F6FFF) : const Color(0xFFE2E8F0),
-          ),
-        ),
-        child: Text(
-          label,
-          style: TextStyle(
-            color: selected ? const Color(0xFF0F6FFF) : const Color(0xFF475569),
-            fontWeight: FontWeight.w800,
-            fontSize: 12,
-          ),
-        ),
-      ),
+        return AnimatedSwitcher(
+      duration: const Duration(milliseconds: 180),
+      switchInCurve: Curves.easeOutCubic,
+      switchOutCurve: Curves.easeInCubic,
+      child: show
+          ? Padding(
+              key: ValueKey<bool>(show),
+              padding: const EdgeInsets.only(top: 16),
+              child: child,
+            )
+          : const SizedBox.shrink(key: ValueKey<bool>(false)),
     );
   }
 

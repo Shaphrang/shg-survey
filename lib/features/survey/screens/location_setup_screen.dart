@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'household_entry_screen.dart';
+import '../utils/location_sorting.dart';
 
 class LocationSetupScreen extends StatefulWidget {
   final List<Map<String, dynamic>>? initialDistricts;
@@ -38,7 +39,9 @@ class _LocationSetupScreenState extends State<LocationSetupScreen> {
     super.initState();
 
     if (widget.initialDistricts != null && widget.initialDistricts!.isNotEmpty) {
-      districts = List<Map<String, dynamic>>.from(widget.initialDistricts!);
+      districts = LocationSorting.sortByName(
+        List<Map<String, dynamic>>.from(widget.initialDistricts!),
+      );
       loadingDistricts = false;
     } else {
       loadDistricts();
@@ -68,7 +71,8 @@ class _LocationSetupScreenState extends State<LocationSetupScreen> {
       if (!mounted) return;
 
       setState(() {
-        districts = List<Map<String, dynamic>>.from(data);
+        districts =
+        LocationSorting.sortByName(List<Map<String, dynamic>>.from(data));
         loadingDistricts = false;
       });
     } catch (e) {
@@ -102,7 +106,7 @@ class _LocationSetupScreenState extends State<LocationSetupScreen> {
       if (!mounted) return;
 
       setState(() {
-        blocks = List<Map<String, dynamic>>.from(data);
+        blocks = LocationSorting.sortByName(List<Map<String, dynamic>>.from(data));
         loadingBlocks = false;
       });
     } catch (e) {
@@ -138,7 +142,8 @@ class _LocationSetupScreenState extends State<LocationSetupScreen> {
       if (!mounted) return;
 
       setState(() {
-        villages = List<Map<String, dynamic>>.from(data);
+        villages =
+        LocationSorting.sortByName(List<Map<String, dynamic>>.from(data));
         loadingVillages = false;
       });
     } catch (e) {
@@ -250,7 +255,6 @@ class _LocationSetupScreenState extends State<LocationSetupScreen> {
                               autofocus: true,
                               obscureText: obscure,
                               decoration: InputDecoration(
-                                labelText: "Authentication Code",
                                 hintText: "Enter code",
                                 errorText: errorText,
                                 prefixIcon: const Icon(Icons.verified_user),
@@ -547,7 +551,7 @@ class _LocationSetupScreenState extends State<LocationSetupScreen> {
               children: [
                 _sectionCard(
                   title: "Location Details",
-                  subtitle: "Data is loaded live from Supabase",
+                  subtitle: "Select your location for performing the survey",
                   child: Column(
                     children: [
                       _buildDropdown(
