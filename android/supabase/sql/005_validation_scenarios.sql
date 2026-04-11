@@ -51,12 +51,18 @@ select public.save_household_survey(
 -- ----------------------------------------------------------------------------
 -- Scenario C: Same household update with NEW submission_uuid (expected processed)
 -- ----------------------------------------------------------------------------
+with vars as (
+  select
+    '00000000-0000-0000-0000-000000000001'::uuid as district_id,
+    '00000000-0000-0000-0000-000000000002'::uuid as block_id,
+    '00000000-0000-0000-0000-000000000003'::uuid as village_id
+)
 select public.save_household_survey(
   jsonb_build_object(
     'device_household_ref', 'hh_test_001',
-    'district_id', 1,
-    'block_id', 1,
-    'village_id', 1,
+    'district_id', (select district_id::text from vars),
+    'block_id', (select block_id::text from vars),
+    'village_id', (select village_id::text from vars),
     'hof_name', 'Test HOF Updated',
     'hof_type', 'father'
   ),

@@ -90,16 +90,16 @@ class _ChoicePill extends StatelessWidget {
     final LinearGradient selectedGradient = isYes
         ? const LinearGradient(
             colors: [
-              Color(0xFFEF4444),
-              Color(0xFFDC2626),
+              Color(0xFF38BDF8),
+              Color(0xFF2563EB),
             ],
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
           )
         : const LinearGradient(
             colors: [
-              Color(0xFF38BDF8),
-              Color(0xFF2563EB),
+              Color(0xFFEF4444),
+              Color(0xFFDC2626),
             ],
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
