@@ -264,4 +264,32 @@ void main() {
 
     expect(offline.listAll().single['sync_status'], 'synced');
   });
+  test('sync service can run again after previous run completes', () async {
+    await offline.saveHouseholdSurvey(
+      household: {'device_household_ref': 'hh-40', 'district_id': 1},
+      members: [
+        {'device_member_ref': 'm-1', 'sort_order': 1},
+      ],
+    );
+
+    final sync = SyncService(
+      offlineSurveyService: offline,
+      remoteService: _SuccessRemoteService(),
+      minimumSyncGap: Duration.zero,
+    );
+
+    final first = await sync.syncAll(forceConnectivityCheck: false);
+    expect(first['uploaded'], 1);
+
+    await offline.saveHouseholdSurvey(
+      household: {'device_household_ref': 'hh-41', 'district_id': 1},
+      members: [
+        {'device_member_ref': 'm-2', 'sort_order': 1},
+      ],
+    );
+
+    final second = await sync.syncAll(forceConnectivityCheck: false);
+    expect(second['uploaded'], 1);
+    expect(second['errors'], isEmpty);
+  });
 }

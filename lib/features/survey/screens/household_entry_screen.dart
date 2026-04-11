@@ -5,7 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:hive/hive.dart';
 import 'package:internet_connection_checker_plus/internet_connection_checker_plus.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
-
+import '../../../core/services/household_submission_service.dart';
 import '../../../core/services/offline_survey_service.dart';
 import '../../../core/services/sync_service.dart';
 import 'location_setup_screen.dart';
@@ -25,6 +25,8 @@ class _HouseholdEntryScreenState extends State<HouseholdEntryScreen> with Widget
   final InternetConnection internetConnection = InternetConnection();
   final SupabaseClient supabase = Supabase.instance.client;
   final GlobalKey<ScaffoldState> scaffoldKey = GlobalKey<ScaffoldState>();
+  final HouseholdSubmissionService householdSubmissionService =
+      HouseholdSubmissionService();
 
   StreamSubscription<InternetStatus>? internetSubscription;
 
@@ -351,7 +353,7 @@ class _HouseholdEntryScreenState extends State<HouseholdEntryScreen> with Widget
     });
 
     try {
-      await offlineService.saveHouseholdSurvey(
+      final result = await householdSubmissionService.saveWithOnlineFirstFallback(
         household: householdPayload,
         members: allMembers,
       );
@@ -362,7 +364,8 @@ class _HouseholdEntryScreenState extends State<HouseholdEntryScreen> with Widget
       clearForm();
 
       if (!mounted) return;
-      showAppSnack('Saved offline securely. Will sync automatically when possible.');
+      final isOffline = result.status == HouseholdSaveStatus.savedOfflinePending;
+      showAppSnack(result.message, isError: false);
 
       if (isOnline) {
         unawaited(syncPending(silent: true));
@@ -406,13 +409,20 @@ class _HouseholdEntryScreenState extends State<HouseholdEntryScreen> with Widget
 
       final uploaded = result["uploaded"] ?? 0;
       final failed = result["failed"] ?? 0;
+      final total = result["total"] ?? 0;
+      final errors = (result["errors"] as List?)?.map((e) => '$e').toList() ?? <String>[];
 
       if (!silent) {
-        if (failed == 0) {
+        if (total == 0 && errors.isNotEmpty) {
+          showAppSnack(
+            'Nothing synced: ${errors.first}',
+            isError: true,
+          );
+        } else if (failed == 0) {
           showAppSnack('$uploaded household(s) synced successfully');
         } else {
           showAppSnack(
-            '$uploaded synced, $failed failed.',
+            '$uploaded synced, $failed failed. ${errors.isNotEmpty ? 'Reason: ${errors.first}' : ''}',
             isError: true,
           );
         }

@@ -110,6 +110,7 @@ class SyncService {
       };
     } finally {
       _lastCompletedSync = DateTime.now().toUtc();
+      _running = false;
     }
   }
 

@@ -44,6 +44,7 @@ class HouseholdRemoteService {
     } on TimeoutException {
       throw Exception('Server timeout while saving household');
     } on PostgrestException catch (e) {
+
       final message = e.message.toString().trim();
       final details = (e.details?.toString() ?? '').trim();
       final hint = (e.hint?.toString() ?? '').trim();
