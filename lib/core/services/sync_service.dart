@@ -12,24 +12,28 @@ import '../sync/sync_types.dart';
 import 'offline_survey_service.dart';
 
 class SyncService {
-    SyncService({
+  SyncService({
     OfflineSurveyService? offlineSurveyService,
     HouseholdRemoteService? remoteService,
     SurveyPayloadBuilder? payloadBuilder,
     SyncBackoff? backoff,
+    Duration? minimumSyncGap,
   })  : offline = offlineSurveyService ?? OfflineSurveyService(),
         remote = remoteService ?? HouseholdRemoteService(),
         _payloadBuilder = payloadBuilder ?? const SurveyPayloadBuilder(),
-        _backoff = backoff ?? SyncBackoff();
+        _backoff = backoff ?? SyncBackoff(),
+        _minimumSyncGap = minimumSyncGap ?? const Duration(seconds: 3);
 
   final OfflineSurveyService offline;
   final HouseholdRemoteService remote;
   final SurveyPayloadBuilder _payloadBuilder;
   final SyncBackoff _backoff;
+  final Duration _minimumSyncGap;
 
   static const int _maxConcurrency = 3;
   final Set<String> _inFlight = <String>{};
   bool _running = false;
+  DateTime? _lastCompletedSync;
 
   Future<Map<String, dynamic>> syncAll({bool forceConnectivityCheck = true}) async {
     if (_running) {
@@ -41,7 +45,18 @@ class SyncService {
       };
     }
 
-        _running = true;
+    final now = DateTime.now().toUtc();
+    if (_lastCompletedSync != null &&
+        now.difference(_lastCompletedSync!) < _minimumSyncGap) {
+      return {
+        'total': 0,
+        'uploaded': 0,
+        'failed': 0,
+        'errors': <String>['Sync throttled to prevent storm'],
+      };
+    }
+
+    _running = true;
 
     try {
       await offline.resetStaleSyncing();
@@ -94,7 +109,7 @@ class SyncService {
         'errors': errors,
       };
     } finally {
-      _running = false;
+      _lastCompletedSync = DateTime.now().toUtc();
     }
   }
 
@@ -123,20 +138,30 @@ class SyncService {
             .whereType<Map>()
             .map((e) => Map<String, dynamic>.from(e))
             .toList(growable: false),
+        submissionUuid: payload['p_submission_uuid'].toString(),
+        payloadHash: payload['p_payload_hash'].toString(),
       );
 
-      if (response['success'] != true) {
-        throw Exception('RPC success=false response: $response');
+      final success = response['success'] == true;
+      final status = response['status']?.toString() ?? '';
+      final isAck = success && (status == 'processed' || status == 'already_processed');
+
+      if (!isAck) {
+        throw Exception('RPC non-ack response: $response');
       }
 
-      await offline.markSynced(localId);
-      SyncLog.info('Sync success: $localId');
+      await offline.markSynced(
+        localId,
+        serverStatus: status,
+        serverTimestamp: response['server_timestamp']?.toString(),
+      );
+      SyncLog.info('Sync success: $localId ($status)');
       return const _SyncResult.success();
     } catch (error, stackTrace) {
       SyncLog.error('Sync failed: $localId -> $error');
       debugPrintStack(stackTrace: stackTrace);
 
-              final classified = _classifyFailure(error);
+      final classified = _classifyFailure(error);
       final attempts = (submission['sync_attempt_count'] as int? ?? 0) + 1;
       final schedule = _backoff.next(attempts);
 
@@ -162,6 +187,14 @@ class SyncService {
 
   _FailureClassification _classifyFailure(Object error) {
     final lower = error.toString().toLowerCase();
+
+    if (lower.contains('submission_uuid') && lower.contains('different payload')) {
+      return _FailureClassification(
+        code: SyncErrorCode.validation,
+        message: 'Unsafe submission replay detected: ${error.toString()}',
+        permanent: true,
+      );
+    }
 
     if (error is SocketException ||
         error is TimeoutException ||
@@ -199,7 +232,7 @@ class SyncService {
       );
     }
 
-        if (error is PostgrestException ||
+    if (error is PostgrestException ||
         lower.contains('server') ||
         lower.contains('database') ||
         lower.contains('postgres')) {

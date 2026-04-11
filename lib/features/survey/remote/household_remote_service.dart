@@ -10,6 +10,8 @@ class HouseholdRemoteService {
   Future<Map<String, dynamic>> saveHouseholdSurvey({
     required Map<String, dynamic> household,
     required List<Map<String, dynamic>> members,
+    required String submissionUuid,
+    required String payloadHash,
   }) async {
     try {
       final response = await supabase
@@ -18,6 +20,8 @@ class HouseholdRemoteService {
             params: {
               'p_household': household,
               'p_members': members,
+              'p_submission_uuid': submissionUuid,
+              'p_payload_hash': payloadHash,
             },
           )
           .timeout(const Duration(seconds: 20));

@@ -18,7 +18,7 @@ class HouseholdEntryScreen extends StatefulWidget {
   State<HouseholdEntryScreen> createState() => _HouseholdEntryScreenState();
 }
 
-class _HouseholdEntryScreenState extends State<HouseholdEntryScreen> {
+class _HouseholdEntryScreenState extends State<HouseholdEntryScreen> with WidgetsBindingObserver {
   final Box sessionBox = Hive.box('session_box');
   final OfflineSurveyService offlineService = OfflineSurveyService();
   final SyncService syncService = SyncService();
@@ -36,6 +36,8 @@ class _HouseholdEntryScreenState extends State<HouseholdEntryScreen> {
   bool isSyncing = false;
   int pendingCount = 0;
   String? lastConnectionMessage;
+  String? _lastSavedFingerprint;
+  DateTime? _lastSavedAt;
 
   final TextEditingController hofNameController = TextEditingController();
   final TextEditingController hofGuardianSpecifyController =
@@ -74,6 +76,7 @@ class _HouseholdEntryScreenState extends State<HouseholdEntryScreen> {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     final rawSession = sessionBox.get('survey_session');
     if (rawSession is Map) {
       session = Map<String, dynamic>.from(rawSession);
@@ -83,6 +86,7 @@ class _HouseholdEntryScreenState extends State<HouseholdEntryScreen> {
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     internetSubscription?.cancel();
 
     hofNameController.dispose();
@@ -93,6 +97,13 @@ class _HouseholdEntryScreenState extends State<HouseholdEntryScreen> {
     hofEpicController.dispose();
 
     super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      unawaited(syncPending(silent: true));
+    }
   }
 
   Future<void> bootstrap() async {
@@ -267,6 +278,28 @@ class _HouseholdEntryScreenState extends State<HouseholdEntryScreen> {
       return;
     }
 
+    final submissionFingerprint = [
+      session['district_id'],
+      session['block_id'],
+      session['village_id'],
+      hofNameController.text.trim().toLowerCase(),
+      hofType,
+      hofGender,
+      hofAgeController.text.trim(),
+      members.length,
+    ].join('|');
+
+    final now = DateTime.now().toUtc();
+    if (_lastSavedFingerprint == submissionFingerprint &&
+        _lastSavedAt != null &&
+        now.difference(_lastSavedAt!) <= const Duration(seconds: 10)) {
+      showAppSnack(
+        'This survey was just saved. Please avoid duplicate submissions.',
+        isError: true,
+      );
+      return;
+    }
+
     final deviceHouseholdRef = offlineService.newDeviceRef('hh');
 
     final householdPayload = <String, dynamic>{
@@ -324,6 +357,8 @@ class _HouseholdEntryScreenState extends State<HouseholdEntryScreen> {
       );
       await refreshPendingCount();
       await refreshConnectionState(showSnack: false);
+      _lastSavedFingerprint = submissionFingerprint;
+      _lastSavedAt = now;
       clearForm();
 
       if (!mounted) return;
@@ -499,7 +534,7 @@ class _HouseholdEntryScreenState extends State<HouseholdEntryScreen> {
 
   String get saveButtonSubtitle {
     return isOnline
-        ? 'Direct save to Server'
+        ? 'Saved locally first, then synced automatically'
         : 'Stored locally and queued for sync';
   }
 

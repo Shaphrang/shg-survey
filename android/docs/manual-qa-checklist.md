@@ -2,33 +2,46 @@
 
 ## Local durability
 - [ ] Fill household + members and tap save once.
-- [ ] Confirm success toast says saved offline.
+- [ ] Confirm toast says saved locally/offline.
 - [ ] Force-close app immediately.
 - [ ] Reopen app and verify pending count still includes saved record.
 
+## Online submission path
+- [ ] Keep internet on, submit survey.
+- [ ] Confirm local-save message appears first.
+- [ ] Confirm pending count drops after successful sync.
+
+## Offline submission path
+- [ ] Disable internet.
+- [ ] Submit survey.
+- [ ] Confirm record remains pending and is not lost.
+- [ ] Re-enable internet and trigger sync; verify status becomes synced.
+
+## Unstable internet / retry behavior
+- [ ] Trigger sync with flaky internet.
+- [ ] Verify transient failure and `next_retry_at` scheduling.
+- [ ] Retry and verify eventual sync success.
+
+## Replay + idempotency
+- [ ] Replay same local submission UUID through retry flow.
+- [ ] Confirm backend `already_processed` response is treated as synced.
+- [ ] Validate no duplicate household/member rows server-side.
+
+
 ## Duplicate prevention
-- [ ] Rapidly tap save button multiple times.
-- [ ] Confirm only one record is created per completed save flow.
-- [ ] Trigger sync twice quickly; verify no duplicate in-flight sync for same local UUID.
+- [ ] Rapidly tap save with same form payload.
+- [ ] Confirm duplicate-save guard blocks immediate repeated submission.
+- [ ] Trigger sync twice quickly; verify sync throttling/in-flight guard.
 
-## Retry behavior
-- [ ] Disable internet and trigger sync.
-- [ ] Verify record goes to transient failure/pending state, not lost.
-- [ ] Re-enable internet and sync again.
-- [ ] Verify successful transition to synced.
+## Validation + permanent failures
+- [ ] Submit invalid member payload (test fixture/debug).
+- [ ] Confirm transition to `failed_permanent` with error reason.
 
-## Restart-safe resume
-- [ ] Put a record in syncing state (start sync, then kill app).
+## App lifecycle recovery
+- [ ] Put record in syncing state (start sync, kill app).
 - [ ] Relaunch app.
-- [ ] Verify stale syncing reset and record resumes eligible sync.
+- [ ] Verify stale syncing resets and record is retried.
 
-## Validation
-- [ ] Attempt save with invalid HOF fields.
-- [ ] Confirm validation blocks queueing.
-- [ ] Attempt member entries with inconsistent data.
-- [ ] Confirm payload is not queued when invalid.
-
-## Field UX
-- [ ] Pending banner appears only when pending > 0.
-- [ ] Drawer shows pending + failed counts.
-- [ ] Retry failed action re-queues transient failures.
+## Auth/session failure
+- [ ] Expire/invalid session token and trigger sync.
+- [ ] Confirm failure is captured and record remains recoverable.

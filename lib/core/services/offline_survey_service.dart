@@ -54,7 +54,9 @@ class OfflineSurveyService {
         'household': householdCopy,
         'members': stableMembers,
       }),
-      'schema_version': 1,
+      'last_server_status': null,
+      'last_server_timestamp': null,
+      'schema_version': 2,
       'type': 'household_submission',
     };
 
@@ -111,19 +113,27 @@ class OfflineSurveyService {
     }).length;
   }
 
-  Future<void> markSyncing(String localSubmissionUuid) async {
+  Future<int> markSyncing(String localSubmissionUuid) async {
     final record = _read(localSubmissionUuid);
-    if (record == null) return;
+    if (record == null) return 0;
+
+    final attempts = (record['sync_attempt_count'] as int? ?? 0) + 1;
 
     record['sync_status'] = SyncStatusCodec.encode(SyncStatus.syncing);
     record['sync_attempt_count'] = (record['sync_attempt_count'] as int? ?? 0) + 1;
+    record['sync_attempt_count'] = attempts;
     record['last_sync_attempt_at'] = DateTime.now().toUtc().toIso8601String();
     record['local_updated_at'] = DateTime.now().toUtc().toIso8601String();
 
     await _box.put(localSubmissionUuid, record);
+    return attempts;
   }
 
-  Future<void> markSynced(String localSubmissionUuid) async {
+  Future<void> markSynced(
+    String localSubmissionUuid, {
+    String? serverStatus,
+    String? serverTimestamp,
+  }) async {
     final record = _read(localSubmissionUuid);
     if (record == null) return;
 
@@ -132,6 +142,8 @@ class OfflineSurveyService {
     record['last_error_code'] = SyncErrorCodeCodec.encode(SyncErrorCode.none);
     record['last_error_message'] = null;
     record['next_retry_at'] = null;
+    record['last_server_status'] = serverStatus;
+    record['last_server_timestamp'] = serverTimestamp;
     record['local_updated_at'] = DateTime.now().toUtc().toIso8601String();
 
     await _box.put(localSubmissionUuid, record);
@@ -157,7 +169,9 @@ class OfflineSurveyService {
 
     await _box.put(localSubmissionUuid, record);
   }
-  Future<void> resetStaleSyncing({Duration maxStale = const Duration(minutes: 5)}) async {
+
+  Future<void> resetStaleSyncing(
+      {Duration maxStale = const Duration(minutes: 5)}) async {
     final now = DateTime.now().toUtc();
     for (final item in listAll()) {
       if (SyncStatusCodec.decode(item['sync_status']) != SyncStatus.syncing) {
@@ -178,7 +192,8 @@ class OfflineSurveyService {
   }
   Future<void> retryAllFailedTransientNow() async {
     for (final item in listAll()) {
-      if (SyncStatusCodec.decode(item['sync_status']) != SyncStatus.failedTransient) {
+      if (SyncStatusCodec.decode(item['sync_status']) !=
+          SyncStatus.failedTransient) {
         continue;
       }
       final id = item['local_submission_uuid']?.toString();

@@ -1,11 +1,19 @@
 import 'dart:convert';
 
+import 'package:crypto/crypto.dart';
+
 class SurveyPayloadBuilder {
   const SurveyPayloadBuilder();
 
   Map<String, dynamic> validateAndBuild({
     required Map<String, dynamic> submission,
   }) {
+
+    final submissionUuid = submission['local_submission_uuid']?.toString() ?? '';
+    if (submissionUuid.isEmpty) {
+      throw const FormatException('local_submission_uuid is required');
+    }
+
     final householdRaw = submission['household'];
     final membersRaw = submission['members'];
 
@@ -54,11 +62,42 @@ class SurveyPayloadBuilder {
     return {
       'p_household': household,
       'p_members': members,
+      'p_submission_uuid': submissionUuid,
+      'p_payload_hash': payloadHash({
+        'household': household,
+        'members': members,
+      }),
     };
   }
 
   String payloadHash(Map<String, dynamic> payload) {
-    final normalized = jsonEncode(payload);
-    return normalized.hashCode.toUnsigned(32).toRadixString(16);
+    final canonical = _canonicalize(payload);
+    final bytes = utf8.encode(canonical);
+    return sha256.convert(bytes).toString();
+  }
+
+  String _canonicalize(Object? value) {
+    if (value is Map) {
+      final keys = value.keys.map((k) => k.toString()).toList()..sort();
+      final normalized = <String, Object?>{};
+      for (final key in keys) {
+        normalized[key] = _normalize(value[key]);
+      }
+      return jsonEncode(normalized);
+    }
+    return jsonEncode(_normalize(value));
+  }
+
+  Object? _normalize(Object? value) {
+    if (value is Map) {
+      final keys = value.keys.map((k) => k.toString()).toList()..sort();
+      return {
+        for (final key in keys) key: _normalize(value[key]),
+      };
+    }
+    if (value is List) {
+      return value.map(_normalize).toList(growable: false);
+    }
+    return value;
   }
 }
