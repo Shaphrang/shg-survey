@@ -2,7 +2,6 @@ import 'dart:async';
 import 'dart:ui';
 
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:hive/hive.dart';
 import 'package:internet_connection_checker_plus/internet_connection_checker_plus.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -46,8 +45,7 @@ class _HouseholdEntryScreenState extends State<HouseholdEntryScreen> with Widget
   final TextEditingController hofGuardianSpecifyController =
       TextEditingController();
   final TextEditingController hofAgeController = TextEditingController();
-  final TextEditingController hofShgNameController = TextEditingController();
-  final TextEditingController hofShgCodeController = TextEditingController();
+  final TextEditingController hofShgController = TextEditingController();
   final TextEditingController hofAadhaarController = TextEditingController();
   final TextEditingController hofEpicController = TextEditingController();
 
@@ -57,7 +55,6 @@ class _HouseholdEntryScreenState extends State<HouseholdEntryScreen> with Widget
   bool hofIsShgMember = false;
   bool hofIsJobCardHolder = false;
   bool hofHasAadhaar = false;
-  bool hofAadhaarNotWillingToShare = false;
   bool hofHasEpic = false;
   bool hofIsSpecialGroup = false;
   String? hofSpecialGroup;
@@ -97,8 +94,7 @@ class _HouseholdEntryScreenState extends State<HouseholdEntryScreen> with Widget
     hofNameController.dispose();
     hofGuardianSpecifyController.dispose();
     hofAgeController.dispose();
-    hofShgNameController.dispose();
-    hofShgCodeController.dispose();
+    hofShgController.dispose();
     hofAadhaarController.dispose();
     hofEpicController.dispose();
 
@@ -193,27 +189,6 @@ class _HouseholdEntryScreenState extends State<HouseholdEntryScreen> with Widget
     return int.tryParse(text.trim());
   }
 
-  String normalizeDigits(String value) {
-    return value.replaceAll(RegExp(r'\D'), '');
-  }
-
-  bool isValidAadhaar(String value) {
-    return RegExp(r'^\d{12}$').hasMatch(normalizeDigits(value));
-  }
-
-  String? combinedShgValue({
-    required String? shgName,
-    required String? shgCode,
-  }) {
-    final name = shgName?.trim() ?? '';
-    final code = shgCode?.trim() ?? '';
-    if (name.isEmpty && code.isEmpty) return null;
-    if (name.isNotEmpty && code.isNotEmpty) {
-      return '$name [$code]';
-    }
-    return name.isNotEmpty ? name : code;
-  }
-
   bool specialGroupIsPwd(String? value) {
     return value == 'PWD';
   }
@@ -248,11 +223,8 @@ class _HouseholdEntryScreenState extends State<HouseholdEntryScreen> with Widget
       return 'Please select marital status';
     }
 
-    if (hofIsShgMember && hofShgNameController.text.trim().isEmpty) {
-      return 'Please enter SHG name';
-    }
-    if (hofIsShgMember && hofShgCodeController.text.trim().isEmpty) {
-      return 'Please enter SHG code';
+    if (hofIsShgMember && hofShgController.text.trim().isEmpty) {
+      return 'Please enter SHG name or code';
     }
 
     if (hofIsSpecialGroup && hofSpecialGroup == null) {
@@ -260,9 +232,8 @@ class _HouseholdEntryScreenState extends State<HouseholdEntryScreen> with Widget
     }
 
     if (hofHasAadhaar &&
-        !hofAadhaarNotWillingToShare &&
-        !isValidAadhaar(hofAadhaarController.text)) {
-      return 'Enter a valid 12-digit Aadhaar or select Not willing to share';
+        !RegExp(r'^\d{12}$').hasMatch(hofAadhaarController.text.trim())) {
+      return 'Aadhaar must be 12 digits';
     }
 
     if (hofHasEpic && hofEpicController.text.trim().isEmpty) {
@@ -276,12 +247,6 @@ class _HouseholdEntryScreenState extends State<HouseholdEntryScreen> with Widget
     Map<String, dynamic>? existingMember,
     int? index,
   }) async {
-    final validationError = validateHof();
-    if (validationError != null) {
-      showAppSnack('Complete required Head of Family details first', isError: true);
-      return;
-    }
-
     final result = await showModalBottomSheet<Map<String, dynamic>>(
       context: context,
       isScrollControlled: true,
@@ -361,23 +326,12 @@ class _HouseholdEntryScreenState extends State<HouseholdEntryScreen> with Widget
         "age": parseAge(hofAgeController.text),
         "marital_status": hofMaritalStatus,
         "is_shg_member": hofIsShgMember,
-        "shg_name": hofIsShgMember ? hofShgNameController.text.trim() : null,
-        "shg_code": hofIsShgMember ? hofShgCodeController.text.trim() : null,
-        "shg_name_or_code": hofIsShgMember
-            ? combinedShgValue(
-                shgName: hofShgNameController.text,
-                shgCode: hofShgCodeController.text,
-              )
-            : null,
+        "shg_name_or_code": hofIsShgMember ? hofShgController.text.trim() : null,
         "special_group": hofIsSpecialGroup ? hofSpecialGroup : null,
         "is_job_card_holder": hofIsJobCardHolder,
         "is_pwd": specialGroupIsPwd(hofSpecialGroup),
         "has_aadhaar": hofHasAadhaar,
-        "aadhaar_not_willing_to_share":
-            hofHasAadhaar ? hofAadhaarNotWillingToShare : false,
-        "aadhaar_no": hofHasAadhaar && !hofAadhaarNotWillingToShare
-            ? normalizeDigits(hofAadhaarController.text)
-            : null,
+        "aadhaar_no": hofHasAadhaar ? hofAadhaarController.text.trim() : null,
         "has_epic": hofHasEpic,
         "epic_no": hofHasEpic ? hofEpicController.text.trim() : null,
       },
@@ -525,8 +479,7 @@ class _HouseholdEntryScreenState extends State<HouseholdEntryScreen> with Widget
       hofNameController.clear();
       hofGuardianSpecifyController.clear();
       hofAgeController.clear();
-      hofShgNameController.clear();
-      hofShgCodeController.clear();
+      hofShgController.clear();
       hofAadhaarController.clear();
       hofEpicController.clear();
 
@@ -536,7 +489,6 @@ class _HouseholdEntryScreenState extends State<HouseholdEntryScreen> with Widget
       hofIsShgMember = false;
       hofIsJobCardHolder = false;
       hofHasAadhaar = false;
-      hofAadhaarNotWillingToShare = false;
       hofHasEpic = false;
       hofIsSpecialGroup = false;
       hofSpecialGroup = null;
@@ -595,8 +547,6 @@ class _HouseholdEntryScreenState extends State<HouseholdEntryScreen> with Widget
         ? 'Saved locally first, then synced automatically'
         : 'Stored locally and queued for sync';
   }
-
-  bool get canAddMember => validateHof() == null;
 
   @override
   Widget build(BuildContext context) {
@@ -1174,7 +1124,6 @@ Widget _buildSoftGlow({
         children: [
           TextField(
             controller: hofNameController,
-            onChanged: (_) => setState(() {}),
             decoration: const InputDecoration(
               labelText: "HOF Name",
               prefixIcon: Icon(Icons.person_rounded),
@@ -1202,7 +1151,6 @@ Widget _buildSoftGlow({
             show: hofType == 'guardian',
             child: TextField(
               controller: hofGuardianSpecifyController,
-              onChanged: (_) => setState(() {}),
               decoration: const InputDecoration(
                 labelText: "If guardian, specify",
                 prefixIcon: Icon(Icons.badge_rounded),
@@ -1227,8 +1175,6 @@ Widget _buildSoftGlow({
           TextField(
             controller: hofAgeController,
             keyboardType: TextInputType.number,
-            inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-            onChanged: (_) => setState(() {}),
             decoration: const InputDecoration(
               labelText: "Age",
               prefixIcon: Icon(Icons.cake_rounded),
@@ -1263,34 +1209,19 @@ Widget _buildSoftGlow({
               setState(() {
                 hofIsShgMember = value;
                 if (!value) {
-                  hofShgNameController.clear();
-                  hofShgCodeController.clear();
+                  hofShgController.clear();
                 }
               });
             },
           ),
           buildAnimatedConditional(
             show: hofIsShgMember,
-            child: Column(
-              children: [
-                TextField(
-                  controller: hofShgNameController,
-                  onChanged: (_) => setState(() {}),
-                  decoration: const InputDecoration(
-                    labelText: "SHG Name",
-                    prefixIcon: Icon(Icons.groups_rounded),
-                  ),
-                ),
-                const SizedBox(height: 12),
-                TextField(
-                  controller: hofShgCodeController,
-                  onChanged: (_) => setState(() {}),
-                  decoration: const InputDecoration(
-                    labelText: "SHG Code",
-                    prefixIcon: Icon(Icons.qr_code_rounded),
-                  ),
-                ),
-              ],
+            child: TextField(
+              controller: hofShgController,
+              decoration: const InputDecoration(
+                labelText: "SHG Name / Code",
+                prefixIcon: Icon(Icons.groups_rounded),
+              ),
             ),
           ),
           const SizedBox(height: 16),
@@ -1348,52 +1279,21 @@ Widget _buildSoftGlow({
                 hofHasAadhaar = value;
                 if (!value) {
                   hofAadhaarController.clear();
-                  hofAadhaarNotWillingToShare = false;
                 }
               });
             },
           ),
           buildAnimatedConditional(
             show: hofHasAadhaar,
-            child: Column(
-              children: [
-                CheckboxListTile(
-                  value: hofAadhaarNotWillingToShare,
-                  contentPadding: EdgeInsets.zero,
-                  dense: true,
-                  title: const Text('Not willing to share'),
-                  controlAffinity: ListTileControlAffinity.leading,
-                  onChanged: (value) {
-                    setState(() {
-                      hofAadhaarNotWillingToShare = value ?? false;
-                      if (hofAadhaarNotWillingToShare) {
-                        hofAadhaarController.clear();
-                      }
-                    });
-                  },
-                ),
-                const SizedBox(height: 8),
-                TextField(
-                  controller: hofAadhaarController,
-                  enabled: !hofAadhaarNotWillingToShare,
-                  keyboardType: TextInputType.number,
-                  inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-                  maxLength: 12,
-                  onChanged: (value) {
-                    if (normalizeDigits(value).isNotEmpty &&
-                        hofAadhaarNotWillingToShare) {
-                      setState(() {
-                        hofAadhaarNotWillingToShare = false;
-                      });
-                    }
-                  },
-                  decoration: const InputDecoration(
-                    labelText: "Aadhaar Number",
-                    prefixIcon: Icon(Icons.credit_card_rounded),
-                    counterText: "",
-                  ),
-                ),
-              ],
+            child: TextField(
+              controller: hofAadhaarController,
+              keyboardType: TextInputType.number,
+              maxLength: 12,
+              decoration: const InputDecoration(
+                labelText: "Aadhaar Number",
+                prefixIcon: Icon(Icons.credit_card_rounded),
+                counterText: "",
+              ),
             ),
           ),
           const SizedBox(height: 16),
@@ -1413,7 +1313,6 @@ Widget _buildSoftGlow({
             show: hofHasEpic,
             child: TextField(
               controller: hofEpicController,
-              onChanged: (_) => setState(() {}),
               decoration: const InputDecoration(
                 labelText: "EPIC Number",
                 prefixIcon: Icon(Icons.how_to_vote_rounded),
@@ -1496,7 +1395,7 @@ Widget _buildSoftGlow({
                             ),
                             const SizedBox(height: 2),
                             Text(
-                              "${formatRelationship(member)} • ${member["gender"]} • ${member["age"]}",
+                              "${formatRelationship(member["relationship_to_hof"]?.toString())} • ${member["gender"]} • ${member["age"]}",
                               style: const TextStyle(
                                 color: Color(0xFF64748B),
                                 fontSize: 12.5,
@@ -1534,23 +1433,11 @@ Widget _buildSoftGlow({
               }),
             ),
           const SizedBox(height: 16),
-          if (!canAddMember)
-            const Padding(
-              padding: EdgeInsets.only(bottom: 8),
-              child: Text(
-                'Complete required Head of Family details first',
-                style: TextStyle(
-                  color: Color(0xFFB45309),
-                  fontSize: 12.5,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-            ),
           Center(
             child: SizedBox(
               width: 220,
               child: OutlinedButton.icon(
-                onPressed: canAddMember ? openMemberSheet : null,
+                onPressed: openMemberSheet,
                 icon: const Icon(Icons.person_add_alt_1_rounded),
                 label: Text(
                   members.isEmpty ? "Add Member" : "Add Another Member",
@@ -1563,8 +1450,7 @@ Widget _buildSoftGlow({
     );
   }
 
-  String formatRelationship(Map<String, dynamic> member) {
-    final value = member["relationship_to_hof"]?.toString();
+  String formatRelationship(String? value) {
     switch (value) {
       case 'spouse':
         return 'Spouse';
@@ -1585,10 +1471,6 @@ Widget _buildSoftGlow({
       case 'grandmother':
         return 'Grandmother';
       case 'other':
-        final custom = member["relationship_to_hof_other"]?.toString().trim();
-        if (custom != null && custom.isNotEmpty) {
-          return 'Other ($custom)';
-        }
         return 'Other';
       default:
         return 'Member';
@@ -1874,9 +1756,7 @@ class _MemberFormSheetState extends State<MemberFormSheet> {
 
   final TextEditingController nameController = TextEditingController();
   final TextEditingController ageController = TextEditingController();
-  final TextEditingController relationshipOtherController = TextEditingController();
-  final TextEditingController shgNameController = TextEditingController();
-  final TextEditingController shgCodeController = TextEditingController();
+  final TextEditingController shgController = TextEditingController();
   final TextEditingController aadhaarController = TextEditingController();
   final TextEditingController epicController = TextEditingController();
 
@@ -1889,7 +1769,6 @@ class _MemberFormSheetState extends State<MemberFormSheet> {
   bool isJobCardHolder = false;
   bool isSpecialGroup = false;
   bool hasAadhaar = false;
-  bool aadhaarNotWillingToShare = false;
   bool hasEpic = false;
   bool hasSubmitted = false;
 
@@ -1905,14 +1784,7 @@ class _MemberFormSheetState extends State<MemberFormSheet> {
     if (m != null) {
       nameController.text = (m["member_name"] ?? "").toString();
       ageController.text = (m["age"] ?? "").toString();
-      relationshipOtherController.text =
-          (m["relationship_to_hof_other"] ?? "").toString();
-      shgNameController.text = (m["shg_name"] ?? "").toString();
-      shgCodeController.text = (m["shg_code"] ?? "").toString();
-      if (shgNameController.text.trim().isEmpty &&
-          shgCodeController.text.trim().isEmpty) {
-        shgNameController.text = (m["shg_name_or_code"] ?? "").toString();
-      }
+      shgController.text = (m["shg_name_or_code"] ?? "").toString();
       aadhaarController.text = (m["aadhaar_no"] ?? "").toString();
       epicController.text = (m["epic_no"] ?? "").toString();
 
@@ -1925,7 +1797,6 @@ class _MemberFormSheetState extends State<MemberFormSheet> {
       isJobCardHolder = m["is_job_card_holder"] == true;
       isSpecialGroup = specialGroup != null && specialGroup!.isNotEmpty;
       hasAadhaar = m["has_aadhaar"] == true;
-      aadhaarNotWillingToShare = m["aadhaar_not_willing_to_share"] == true;
       hasEpic = m["has_epic"] == true;
     }
   }
@@ -1934,9 +1805,7 @@ class _MemberFormSheetState extends State<MemberFormSheet> {
   void dispose() {
     nameController.dispose();
     ageController.dispose();
-    relationshipOtherController.dispose();
-    shgNameController.dispose();
-    shgCodeController.dispose();
+    shgController.dispose();
     aadhaarController.dispose();
     epicController.dispose();
     super.dispose();
@@ -1945,25 +1814,6 @@ class _MemberFormSheetState extends State<MemberFormSheet> {
   
   bool specialGroupIsPwd(String? value) {
     return value == 'PWD';
-  }
-
-  String normalizeDigits(String value) {
-    return value.replaceAll(RegExp(r'\D'), '');
-  }
-
-  bool isValidAadhaar(String value) {
-    return RegExp(r'^\d{12}$').hasMatch(normalizeDigits(value));
-  }
-
-  String? combinedShgValue({
-    required String? shgName,
-    required String? shgCode,
-  }) {
-    final name = shgName?.trim() ?? '';
-    final code = shgCode?.trim() ?? '';
-    if (name.isEmpty && code.isEmpty) return null;
-    if (name.isNotEmpty && code.isNotEmpty) return '$name [$code]';
-    return name.isNotEmpty ? name : code;
   }
 
   void submit() {
@@ -1988,30 +1838,17 @@ class _MemberFormSheetState extends State<MemberFormSheet> {
     Navigator.pop(context, {
       "device_member_ref": widget.initialMember?["device_member_ref"],
       "relationship_to_hof": relationship,
-      "relationship_to_hof_other":
-          relationship == 'other' ? relationshipOtherController.text.trim() : null,
       "member_name": nameController.text.trim(),
       "gender": gender,
       "age": int.parse(ageController.text.trim()),
       "marital_status": maritalStatus,
       "is_shg_member": isShgMember,
-      "shg_name": isShgMember ? shgNameController.text.trim() : null,
-      "shg_code": isShgMember ? shgCodeController.text.trim() : null,
-      "shg_name_or_code": isShgMember
-          ? combinedShgValue(
-              shgName: shgNameController.text,
-              shgCode: shgCodeController.text,
-            )
-          : null,
+      "shg_name_or_code": isShgMember ? shgController.text.trim() : null,
       "special_group": isSpecialGroup ? specialGroup : null,
       "is_job_card_holder": isJobCardHolder,
       "is_pwd": specialGroupIsPwd(specialGroup),
       "has_aadhaar": hasAadhaar,
-      "aadhaar_not_willing_to_share":
-          hasAadhaar ? aadhaarNotWillingToShare : false,
-      "aadhaar_no": hasAadhaar && !aadhaarNotWillingToShare
-          ? normalizeDigits(aadhaarController.text)
-          : null,
+      "aadhaar_no": hasAadhaar ? aadhaarController.text.trim() : null,
       "has_epic": hasEpic,
       "epic_no": hasEpic ? epicController.text.trim() : null,
     });
@@ -2108,29 +1945,9 @@ class _MemberFormSheetState extends State<MemberFormSheet> {
                             onChanged: (value) {
                               setState(() {
                                 relationship = value;
-                                if (relationship != 'other') {
-                                  relationshipOtherController.clear();
-                                }
                                 relationshipError = null;
                               });
                             },
-                          ),
-                          buildAnimatedConditional(
-                            show: relationship == 'other',
-                            child: TextFormField(
-                              controller: relationshipOtherController,
-                              decoration: const InputDecoration(
-                                labelText: "Please specify relationship",
-                                prefixIcon: Icon(Icons.edit_note_rounded),
-                              ),
-                              validator: (value) {
-                                if (relationship == 'other' &&
-                                    (value == null || value.trim().isEmpty)) {
-                                  return 'Please specify relationship';
-                                }
-                                return null;
-                              },
-                            ),
                           ),
                           const SizedBox(height: 16),
                           TextFormField(
@@ -2164,7 +1981,6 @@ class _MemberFormSheetState extends State<MemberFormSheet> {
                           TextFormField(
                             controller: ageController,
                             keyboardType: TextInputType.number,
-                            inputFormatters: [FilteringTextInputFormatter.digitsOnly],
                             decoration: const InputDecoration(
                               labelText: "Age",
                               prefixIcon: Icon(Icons.cake_rounded),
@@ -2202,47 +2018,24 @@ class _MemberFormSheetState extends State<MemberFormSheet> {
                             onChanged: (value) {
                               setState(() {
                                 isShgMember = value;
-                                if (!value) {
-                                  shgNameController.clear();
-                                  shgCodeController.clear();
-                                }
+                                if (!value) shgController.clear();
                               });
                             },
                           ),
                           buildAnimatedConditional(
                             show: isShgMember,
-                            child: Column(
-                              children: [
-                                TextFormField(
-                                  controller: shgNameController,
-                                  decoration: const InputDecoration(
-                                    labelText: "SHG Name",
-                                    prefixIcon: Icon(Icons.groups_rounded),
-                                  ),
-                                  validator: (value) {
-                                    if (isShgMember &&
-                                        (value == null || value.trim().isEmpty)) {
-                                      return 'Please enter SHG name';
-                                    }
-                                    return null;
-                                  },
-                                ),
-                                const SizedBox(height: 12),
-                                TextFormField(
-                                  controller: shgCodeController,
-                                  decoration: const InputDecoration(
-                                    labelText: "SHG Code",
-                                    prefixIcon: Icon(Icons.qr_code_rounded),
-                                  ),
-                                  validator: (value) {
-                                    if (isShgMember &&
-                                        (value == null || value.trim().isEmpty)) {
-                                      return 'Please enter SHG code';
-                                    }
-                                    return null;
-                                  },
-                                ),
-                              ],
+                            child: TextFormField(
+                              controller: shgController,
+                              decoration: const InputDecoration(
+                                labelText: "SHG Name / Code",
+                                prefixIcon: Icon(Icons.groups_rounded),
+                              ),
+                                                          validator: (value) {
+                                if (isShgMember && (value == null || value.trim().isEmpty)) {
+                                  return 'Please enter SHG name or code';
+                                }
+                                return null;
+                              },
                             ),
                           ),
                           const SizedBox(height: 16),
@@ -2297,63 +2090,28 @@ class _MemberFormSheetState extends State<MemberFormSheet> {
                             onChanged: (value) {
                               setState(() {
                                 hasAadhaar = value;
-                                if (!value) {
-                                  aadhaarController.clear();
-                                  aadhaarNotWillingToShare = false;
-                                }
+                                if (!value) aadhaarController.clear();
                               });
                             },
                           ),
                           buildAnimatedConditional(
                             show: hasAadhaar,
-                            child: Column(
-                              children: [
-                                CheckboxListTile(
-                                  value: aadhaarNotWillingToShare,
-                                  contentPadding: EdgeInsets.zero,
-                                  dense: true,
-                                  title: const Text('Not willing to share'),
-                                  controlAffinity: ListTileControlAffinity.leading,
-                                  onChanged: (value) {
-                                    setState(() {
-                                      aadhaarNotWillingToShare = value ?? false;
-                                      if (aadhaarNotWillingToShare) {
-                                        aadhaarController.clear();
-                                      }
-                                    });
-                                  },
-                                ),
-                                const SizedBox(height: 8),
-                                TextFormField(
-                                  controller: aadhaarController,
-                                  enabled: !aadhaarNotWillingToShare,
-                                  keyboardType: TextInputType.number,
-                                  inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-                                  maxLength: 12,
-                                  decoration: const InputDecoration(
-                                    labelText: "Aadhaar Number",
-                                    prefixIcon: Icon(Icons.credit_card_rounded),
-                                    counterText: "",
-                                  ),
-                                  onChanged: (value) {
-                                    if (normalizeDigits(value).isNotEmpty &&
-                                        aadhaarNotWillingToShare) {
-                                      setState(() {
-                                        aadhaarNotWillingToShare = false;
-                                      });
-                                    }
-                                  },
-                                  validator: (value) {
-                                    if (!hasAadhaar || aadhaarNotWillingToShare) {
-                                      return null;
-                                    }
-                                    if (!isValidAadhaar(value ?? '')) {
-                                      return 'Enter a valid 12-digit Aadhaar or select Not willing to share';
-                                    }
-                                    return null;
-                                  },
-                                ),
-                              ],
+                            child: TextFormField(
+                              controller: aadhaarController,
+                              keyboardType: TextInputType.number,
+                              maxLength: 12,
+                              decoration: const InputDecoration(
+                                labelText: "Aadhaar Number",
+                                prefixIcon: Icon(Icons.credit_card_rounded),
+                                counterText: "",
+                              ),
+                              validator: (value) {
+                                if (!hasAadhaar) return null;
+                                if (!RegExp(r'^\\d{12}$').hasMatch((value ?? '').trim())) {
+                                  return 'Aadhaar must be 12 digits';
+                                }
+                                return null;
+                              },
                             ),
                           ),
                           const SizedBox(height: 16),
