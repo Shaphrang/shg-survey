@@ -121,9 +121,9 @@ begin
   )
   values (
     v_device_household_ref,
-    case when nullif(trim(p_household->>'district_id'), '') is null then null else (p_household->>'district_id')::bigint end,
-    case when nullif(trim(p_household->>'block_id'), '') is null then null else (p_household->>'block_id')::bigint end,
-    case when nullif(trim(p_household->>'village_id'), '') is null then null else (p_household->>'village_id')::bigint end,
+    case when nullif(trim(p_household->>'district_id'), '') is null then null else (p_household->>'district_id')::uuid end,
+    case when nullif(trim(p_household->>'block_id'), '') is null then null else (p_household->>'block_id')::uuid end,
+    case when nullif(trim(p_household->>'village_id'), '') is null then null else (p_household->>'village_id')::uuid end,
     nullif(trim(p_household->>'hof_name'), ''),
     nullif(trim(p_household->>'hof_type'), ''),
     nullif(trim(p_household->>'guardian_specify'), ''),

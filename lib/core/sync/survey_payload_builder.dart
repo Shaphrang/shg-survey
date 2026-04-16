@@ -52,6 +52,10 @@ class SurveyPayloadBuilder {
       throw const FormatException('device_household_ref is required');
     }
 
+    _validateHouseholdLocationUuid(household, 'district_id');
+    _validateHouseholdLocationUuid(household, 'block_id');
+    _validateHouseholdLocationUuid(household, 'village_id');
+
     if (members.isEmpty) {
       throw const FormatException('At least one member is required');
     }
@@ -248,6 +252,22 @@ class SurveyPayloadBuilder {
       return value.trim();
     }
     return value;
+  }
+
+  void _validateHouseholdLocationUuid(
+    Map<String, dynamic> household,
+    String key,
+  ) {
+    final raw = household[key];
+    if (raw == null) return;
+    final value = raw.toString().trim();
+    if (value.isEmpty) return;
+    final uuidPattern = RegExp(
+      r'^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-5][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$',
+    );
+    if (!uuidPattern.hasMatch(value)) {
+      throw FormatException('$key must be a UUID');
+    }
   }
 
   String payloadHash(Map<String, dynamic> payload) {

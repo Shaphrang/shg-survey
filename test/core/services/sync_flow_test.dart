@@ -72,6 +72,7 @@ class _UuidMismatchRemoteService extends HouseholdRemoteService {
 void main() {
   late Directory tempDir;
   late OfflineSurveyService offline;
+  const districtId = '00000000-0000-0000-0000-000000000001';
   Map<String, dynamic> memberPayload(String ref, int sortOrder) => {
         'device_member_ref': ref,
         'sort_order': sortOrder,
@@ -134,7 +135,7 @@ void main() {
 
   test('offline save writes durable pending record', () async {
     final id = await offline.saveHouseholdSurvey(
-      household: {'device_household_ref': 'hh-10', 'district_id': 1},
+      household: {'device_household_ref': 'hh-10', 'district_id': districtId},
       members: [
         memberPayload('m-1', 1),
       ],
@@ -152,7 +153,7 @@ void main() {
 
   test('sync success marks record synced after RPC ack', () async {
     await offline.saveHouseholdSurvey(
-      household: {'device_household_ref': 'hh-20', 'district_id': 1},
+      household: {'device_household_ref': 'hh-20', 'district_id': districtId},
       members: [
         memberPayload('m-1', 1),
       ],
@@ -174,7 +175,7 @@ void main() {
 
     test('already_processed response is treated as synced replay ack', () async {
     await offline.saveHouseholdSurvey(
-      household: {'device_household_ref': 'hh-22', 'district_id': 1},
+      household: {'device_household_ref': 'hh-22', 'district_id': districtId},
       members: [
         memberPayload('m-1', 1),
       ],
@@ -193,7 +194,7 @@ void main() {
 
   test('network sync failure keeps record as failed_transient for retry', () async {
     await offline.saveHouseholdSurvey(
-      household: {'device_household_ref': 'hh-30', 'district_id': 1},
+      household: {'device_household_ref': 'hh-30', 'district_id': districtId},
       members: [
         memberPayload('m-1', 1),
       ],
@@ -215,7 +216,7 @@ void main() {
 
   test('uuid mismatch becomes failed_permanent', () async {
     await offline.saveHouseholdSurvey(
-      household: {'device_household_ref': 'hh-31', 'district_id': 1},
+      household: {'device_household_ref': 'hh-31', 'district_id': districtId},
       members: [
         memberPayload('m-1', 1),
       ],
@@ -288,7 +289,7 @@ void main() {
   });
   test('sync service can run again after previous run completes', () async {
     await offline.saveHouseholdSurvey(
-      household: {'device_household_ref': 'hh-40', 'district_id': 1},
+      household: {'device_household_ref': 'hh-40', 'district_id': districtId},
       members: [
         memberPayload('m-1', 1),
       ],
@@ -304,7 +305,7 @@ void main() {
     expect(first['uploaded'], 1);
 
     await offline.saveHouseholdSurvey(
-      household: {'device_household_ref': 'hh-41', 'district_id': 1},
+      household: {'device_household_ref': 'hh-41', 'district_id': districtId},
       members: [
         memberPayload('m-2', 1),
       ],
