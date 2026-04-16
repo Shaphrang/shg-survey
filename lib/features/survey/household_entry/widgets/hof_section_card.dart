@@ -259,7 +259,7 @@ class HofSectionCard extends StatelessWidget {
             child: TextField(
               controller: data.hofAadhaarController,
               keyboardType: TextInputType.number,
-              inputFormatters: const [
+              inputFormatters: [
                 FilteringTextInputFormatter.digitsOnly,
                 LengthLimitingTextInputFormatter(12),
               ],
