@@ -332,7 +332,7 @@ class _MemberFormSheetState extends State<MemberFormSheet> {
                           TextFormField(
                             controller: ageController,
                             keyboardType: TextInputType.number,
-                            inputFormatters: const [
+                            inputFormatters: [
                               FilteringTextInputFormatter.digitsOnly,
                             ],
                             decoration: const InputDecoration(
@@ -518,7 +518,7 @@ class _MemberFormSheetState extends State<MemberFormSheet> {
                             child: TextFormField(
                               controller: aadhaarController,
                               keyboardType: TextInputType.number,
-                              inputFormatters: const [
+                              inputFormatters: [
                                 FilteringTextInputFormatter.digitsOnly,
                               ],
                               decoration: const InputDecoration(
