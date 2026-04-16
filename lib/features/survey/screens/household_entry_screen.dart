@@ -61,6 +61,7 @@ class _HouseholdEntryScreenState extends State<HouseholdEntryScreen>
 
   String? hofType;
   String? hofGender;
+  String? hofGenderErrorText;
   String? hofMaritalStatus;
   bool hofIsShgMember = false;
   bool hofIsJobCardHolder = false;
@@ -69,6 +70,7 @@ class _HouseholdEntryScreenState extends State<HouseholdEntryScreen>
   bool hofHasEpic = false;
   bool hofIsSpecialGroup = false;
   String? hofSpecialGroup;
+  String? hofAadhaarErrorText;
 
   final List<Map<String, dynamic>> members = [];
 
@@ -80,6 +82,10 @@ class _HouseholdEntryScreenState extends State<HouseholdEntryScreen>
     if (rawSession is Map) {
       session = Map<String, dynamic>.from(rawSession);
     }
+    hofNameController.addListener(_onHofCoreFieldChanged);
+    hofAgeController.addListener(_onHofAgeChanged);
+    hofAadhaarController.addListener(_onHofAadhaarChanged);
+    _syncHofDependentState();
     bootstrap();
   }
 
@@ -182,6 +188,13 @@ class _HouseholdEntryScreenState extends State<HouseholdEntryScreen>
   }
 
   String? validateHof() {
+    final aadhaarValidation = HouseholdEntryValidators.validateOptionalAadhaar(
+      hofHasAadhaar ? hofAadhaarController.text : '',
+    );
+    if (aadhaarValidation != null) {
+      return aadhaarValidation;
+    }
+
     return HouseholdEntryValidators.validateHof(
       HofValidationInput(
         hofName: hofNameController.text,
@@ -439,6 +452,7 @@ class _HouseholdEntryScreenState extends State<HouseholdEntryScreen>
 
       hofType = null;
       hofGender = null;
+      hofGenderErrorText = null;
       hofMaritalStatus = null;
       hofIsShgMember = false;
       hofIsJobCardHolder = false;
@@ -447,6 +461,7 @@ class _HouseholdEntryScreenState extends State<HouseholdEntryScreen>
       hofHasEpic = false;
       hofIsSpecialGroup = false;
       hofSpecialGroup = null;
+      hofAadhaarErrorText = null;
 
       members.clear();
     });
@@ -496,6 +511,7 @@ class _HouseholdEntryScreenState extends State<HouseholdEntryScreen>
       if (value != 'guardian') {
         hofGuardianSpecifyController.clear();
       }
+      _syncHofDependentState();
     });
   }
 
@@ -524,6 +540,7 @@ class _HouseholdEntryScreenState extends State<HouseholdEntryScreen>
       if (!value) {
         hofSpecialGroup = null;
       }
+      _syncHofDependentState();
     });
   }
 
@@ -539,6 +556,11 @@ class _HouseholdEntryScreenState extends State<HouseholdEntryScreen>
   void handleAadhaarChanged(bool value) {
     setState(() {
       hofHasAadhaar = value;
+      hofAadhaarErrorText = value
+          ? HouseholdEntryValidators.validateOptionalAadhaar(
+              hofAadhaarController.text,
+            )
+          : null;
       if (!value) {
         hofAadhaarController.clear();
       }
@@ -565,6 +587,63 @@ class _HouseholdEntryScreenState extends State<HouseholdEntryScreen>
     return isOnline
         ? 'Saved locally first, then synced automatically'
         : 'Stored locally and queued for sync';
+  }
+
+  int? get _hofAge => HouseholdEntryValidators.parseAge(hofAgeController.text);
+
+  List<String> get _availableHofSpecialGroups =>
+      HouseholdEntryValidators.allowedSpecialGroupsForAge(_hofAge);
+
+  bool get _showHofShgField {
+    if (hofType != 'father') return true;
+    return hofIsSpecialGroup;
+  }
+
+  bool get _canAddMember =>
+      HouseholdEntryValidators.isHeadOfFamilyReadyToAddMember(
+        hofName: hofNameController.text,
+        hofType: hofType,
+        age: hofAgeController.text,
+        hofGender: hofGender,
+      );
+
+  void _onHofCoreFieldChanged() {
+    if (!mounted) return;
+    setState(() {});
+  }
+
+  void _onHofAgeChanged() {
+    if (!mounted) return;
+    setState(() {
+      _syncHofDependentState();
+    });
+  }
+
+  void _onHofAadhaarChanged() {
+    if (!mounted || !hofHasAadhaar) return;
+    setState(() {
+      hofAadhaarErrorText = HouseholdEntryValidators.validateOptionalAadhaar(
+        hofAadhaarController.text,
+      );
+    });
+  }
+
+  void _syncHofDependentState() {
+    hofGenderErrorText = HouseholdEntryValidators.validateHofGenderForType(
+      hofType: hofType,
+      hofGender: hofGender,
+    );
+
+    final allowedGroups = _availableHofSpecialGroups;
+    if (hofSpecialGroup != null && !allowedGroups.contains(hofSpecialGroup)) {
+      hofSpecialGroup = null;
+    }
+
+    if (hofType == 'father' && !_showHofShgField) {
+      hofIsShgMember = false;
+      hofShgNameController.clear();
+      hofShgCodeController.clear();
+    }
   }
 
   @override
@@ -678,6 +757,7 @@ class _HouseholdEntryScreenState extends State<HouseholdEntryScreen>
                       hofJobCardCodeController: hofJobCardCodeController,
                       hofType: hofType,
                       hofGender: hofGender,
+                      hofGenderErrorText: hofGenderErrorText,
                       hofMaritalStatus: hofMaritalStatus,
                       hofIsShgMember: hofIsShgMember,
                       hofIsJobCardHolder: hofIsJobCardHolder,
@@ -686,16 +766,26 @@ class _HouseholdEntryScreenState extends State<HouseholdEntryScreen>
                       hofHasEpic: hofHasEpic,
                       hofIsSpecialGroup: hofIsSpecialGroup,
                       hofSpecialGroup: hofSpecialGroup,
+                      showShgField: _showHofShgField,
+                      availableSpecialGroups: _availableHofSpecialGroups,
+                      hofAadhaarErrorText: hofAadhaarErrorText,
                     ),
                     onHofTypeChanged: handleHofTypeChanged,
-                    onHofGenderChanged: (value) => setState(() => hofGender = value),
-                    onMaritalStatusChanged: (value) =>
-                        setState(() => hofMaritalStatus = value),
+                    onHofGenderChanged: (value) => setState(() {
+                      hofGender = value;
+                      _syncHofDependentState();
+                    }),
+                    onMaritalStatusChanged: (value) => setState(() {
+                      hofMaritalStatus = value;
+                      _syncHofDependentState();
+                    }),
                     onShgChanged: handleShgChanged,
                     onPmaygChanged: handlePmaygChanged,
                     onSpecialGroupChanged: handleSpecialGroupChanged,
-                    onSpecialGroupTypeChanged: (value) =>
-                        setState(() => hofSpecialGroup = value),
+                    onSpecialGroupTypeChanged: (value) => setState(() {
+                      hofSpecialGroup = value;
+                      _syncHofDependentState();
+                    }),
                     onJobCardChanged: handleJobCardChanged,
                     onAadhaarChanged: handleAadhaarChanged,
                     onEpicChanged: handleEpicChanged,
@@ -703,7 +793,7 @@ class _HouseholdEntryScreenState extends State<HouseholdEntryScreen>
                   const SizedBox(height: 18),
                   MembersSectionCard(
                     members: members,
-                    onAdd: () => openMemberSheet(),
+                    onAdd: _canAddMember ? () => openMemberSheet() : null,
                     onEdit: (index) => openMemberSheet(
                       existingMember: members[index],
                       index: index,
