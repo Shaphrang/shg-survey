@@ -27,7 +27,40 @@ class HofValidationInput {
 class HouseholdEntryValidators {
   const HouseholdEntryValidators._();
 
+  static const Set<String> maleOnlyRelationshipGroup = <String>{
+    'father',
+    'son',
+    'brother',
+    'grandfather',
+  };
+
+  static const Set<String> femaleOnlyRelationshipGroup = <String>{
+    'mother',
+    'daughter',
+    'sister',
+    'grandmother',
+  };
+
   static int? parseAge(String text) => int.tryParse(text.trim());
+
+  static bool isMaleOnlyRelationship(String? relationship) =>
+      maleOnlyRelationshipGroup.contains(relationship?.trim().toLowerCase());
+
+  static bool isFemaleOnlyRelationship(String? relationship) =>
+      femaleOnlyRelationshipGroup.contains(relationship?.trim().toLowerCase());
+
+  static String? validateMemberGenderForRelationship({
+    required String? relationshipToHof,
+    required String? memberGender,
+  }) {
+    if (isMaleOnlyRelationship(relationshipToHof) && memberGender != 'M') {
+      return 'Gender must be Male for this relationship';
+    }
+    if (isFemaleOnlyRelationship(relationshipToHof) && memberGender != 'F') {
+      return 'Gender must be Female for this relationship';
+    }
+    return null;
+  }
 
   static String? validateHofGenderForType({
     required String? hofType,
