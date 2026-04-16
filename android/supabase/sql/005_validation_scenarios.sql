@@ -34,7 +34,7 @@ select public.save_household_survey(
       'marital_status', 'Married',
       'is_shg_member', false,
       'is_job_card_holder', false,
-      'is_pwd', false,
+      'is_pmayg', false,
       'has_aadhaar', false,
       'has_epic', false
     )
@@ -77,7 +77,7 @@ select public.save_household_survey(
       'marital_status', 'Married',
       'is_shg_member', false,
       'is_job_card_holder', false,
-      'is_pwd', false,
+      'is_pmayg', false,
       'has_aadhaar', false,
       'has_epic', false
     )
