@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import '../../../../core/sync/survey_payload_builder.dart';
 import '../../widgets/survey_yes_no_field.dart';
@@ -52,6 +53,55 @@ class _MemberFormSheetState extends State<MemberFormSheet> {
   String? genderError;
   String? maritalStatusError;
 
+  int? get _memberAge => HouseholdEntryValidators.parseAge(ageController.text);
+
+  List<String> get _allowedSpecialGroupsForAge =>
+      HouseholdEntryValidators.allowedSpecialGroupsForAge(_memberAge);
+
+  bool get _showEpicSection => (_memberAge ?? -1) > 18;
+
+  bool get _showShgSectionForRelationship {
+    final isMaleRelationship =
+        HouseholdEntryValidators.isMaleOnlyRelationship(relationship);
+    if (!isMaleRelationship) return true;
+    return isSpecialGroup;
+  }
+
+  void _clearShgState() {
+    isShgMember = false;
+    shgNameController.clear();
+    shgCodeController.clear();
+  }
+
+  void _clearEpicState() {
+    hasEpic = false;
+    epicController.clear();
+  }
+
+  void _syncMemberDependentState() {
+    if (!_showShgSectionForRelationship) {
+      _clearShgState();
+    }
+
+    if (!_showEpicSection) {
+      _clearEpicState();
+    }
+
+    if (!hasAadhaar) {
+      aadhaarController.clear();
+    }
+
+    if (specialGroup != null &&
+        !_allowedSpecialGroupsForAge.contains(specialGroup)) {
+      specialGroup = null;
+    }
+
+    genderError = HouseholdEntryValidators.validateMemberGenderForRelationship(
+      relationshipToHof: relationship,
+      memberGender: gender,
+    );
+  }
+
   @override
   void initState() {
     super.initState();
@@ -84,6 +134,8 @@ class _MemberFormSheetState extends State<MemberFormSheet> {
       hasAadhaar = m['has_aadhaar'] == true;
       hasEpic = m['has_epic'] == true;
     }
+
+    _syncMemberDependentState();
   }
 
   @override
@@ -101,13 +153,19 @@ class _MemberFormSheetState extends State<MemberFormSheet> {
   }
 
   void submit() {
+    _syncMemberDependentState();
     final valid = formKey.currentState?.validate() ?? false;
 
     setState(() {
       hasSubmitted = true;
       relationshipError =
           relationship == null ? 'Please select relationship' : null;
-      genderError = gender == null ? 'Please select gender' : null;
+      genderError = gender == null
+          ? 'Please select gender'
+          : HouseholdEntryValidators.validateMemberGenderForRelationship(
+              relationshipToHof: relationship,
+              memberGender: gender,
+            );
       maritalStatusError =
           maritalStatus == null ? 'Please select marital status' : null;
     });
@@ -237,6 +295,7 @@ class _MemberFormSheetState extends State<MemberFormSheet> {
                                 if (value != 'other') {
                                   relationshipOtherController.clear();
                                 }
+                                _syncMemberDependentState();
                               });
                             },
                           ),
@@ -273,6 +332,9 @@ class _MemberFormSheetState extends State<MemberFormSheet> {
                           TextFormField(
                             controller: ageController,
                             keyboardType: TextInputType.number,
+                            inputFormatters: const [
+                              FilteringTextInputFormatter.digitsOnly,
+                            ],
                             decoration: const InputDecoration(
                               labelText: 'Age',
                               prefixIcon: Icon(Icons.cake_rounded),
@@ -283,6 +345,11 @@ class _MemberFormSheetState extends State<MemberFormSheet> {
                                 return 'Please enter valid age';
                               }
                               return null;
+                            },
+                            onChanged: (_) {
+                              setState(() {
+                                _syncMemberDependentState();
+                              });
                             },
                           ),
                           const SizedBox(height: 16),
@@ -297,7 +364,7 @@ class _MemberFormSheetState extends State<MemberFormSheet> {
                             onSelected: (value) {
                               setState(() {
                                 gender = value;
-                                genderError = null;
+                                _syncMemberDependentState();
                               });
                             },
                           ),
@@ -319,6 +386,7 @@ class _MemberFormSheetState extends State<MemberFormSheet> {
                               setState(() {
                                 maritalStatus = value;
                                 maritalStatusError = null;
+                                _syncMemberDependentState();
                               });
                             },
                           ),
@@ -329,7 +397,10 @@ class _MemberFormSheetState extends State<MemberFormSheet> {
                             onChanged: (value) {
                               setState(() {
                                 isSpecialGroup = value;
-                                if (!value) specialGroup = null;
+                                if (!value) {
+                                  specialGroup = null;
+                                }
+                                _syncMemberDependentState();
                               });
                             },
                           ),
@@ -342,6 +413,7 @@ class _MemberFormSheetState extends State<MemberFormSheet> {
                                 prefixIcon: Icon(Icons.workspace_premium_rounded),
                               ),
                               items: specialGroupOptions
+                                  .where(_allowedSpecialGroupsForAge.contains)
                                   .map((e) => DropdownMenuItem<String>(
                                         value: e,
                                         child: Text(e),
@@ -350,6 +422,7 @@ class _MemberFormSheetState extends State<MemberFormSheet> {
                               onChanged: (value) {
                                 setState(() {
                                   specialGroup = value;
+                                  _syncMemberDependentState();
                                 });
                               },
                               validator: (value) {
@@ -361,21 +434,24 @@ class _MemberFormSheetState extends State<MemberFormSheet> {
                             ),
                           ),
                           const SizedBox(height: 16),
-                          SurveyYesNoField(
-                            title: 'Part of SHG',
-                            value: isShgMember,
-                            onChanged: (value) {
-                              setState(() {
-                                isShgMember = value;
-                                if (!value) {
-                                  shgNameController.clear();
-                                  shgCodeController.clear();
-                                }
-                              });
-                            },
+                          AnimatedVisibilitySection(
+                            show: _showShgSectionForRelationship,
+                            child: SurveyYesNoField(
+                              title: 'Part of SHG',
+                              value: isShgMember,
+                              onChanged: (value) {
+                                setState(() {
+                                  isShgMember = value;
+                                  if (!value) {
+                                    shgNameController.clear();
+                                    shgCodeController.clear();
+                                  }
+                                });
+                              },
+                            ),
                           ),
                           AnimatedVisibilitySection(
-                            show: isShgMember,
+                            show: _showShgSectionForRelationship && isShgMember,
                             child: Column(
                               children: [
                                 TextFormField(
@@ -433,7 +509,7 @@ class _MemberFormSheetState extends State<MemberFormSheet> {
                             onChanged: (value) {
                               setState(() {
                                 hasAadhaar = value;
-                                if (!value) aadhaarController.clear();
+                                _syncMemberDependentState();
                               });
                             },
                           ),
@@ -441,25 +517,36 @@ class _MemberFormSheetState extends State<MemberFormSheet> {
                             show: hasAadhaar,
                             child: TextFormField(
                               controller: aadhaarController,
+                              keyboardType: TextInputType.number,
+                              inputFormatters: const [
+                                FilteringTextInputFormatter.digitsOnly,
+                              ],
                               decoration: const InputDecoration(
                                 labelText: 'Aadhaar Number (Optional)',
                                 prefixIcon: Icon(Icons.credit_card_rounded),
                               ),
+                              validator: (value) =>
+                                  HouseholdEntryValidators.validateOptionalAadhaar(
+                                value ?? '',
+                              ),
                             ),
                           ),
                           const SizedBox(height: 16),
-                          SurveyYesNoField(
-                            title: 'Has EPIC',
-                            value: hasEpic,
-                            onChanged: (value) {
-                              setState(() {
-                                hasEpic = value;
-                                if (!value) epicController.clear();
-                              });
-                            },
+                          AnimatedVisibilitySection(
+                            show: _showEpicSection,
+                            child: SurveyYesNoField(
+                              title: 'Has EPIC',
+                              value: hasEpic,
+                              onChanged: (value) {
+                                setState(() {
+                                  hasEpic = value;
+                                  if (!value) epicController.clear();
+                                });
+                              },
+                            ),
                           ),
                           AnimatedVisibilitySection(
-                            show: hasEpic,
+                            show: _showEpicSection && hasEpic,
                             child: TextFormField(
                               controller: epicController,
                               decoration: const InputDecoration(
@@ -468,6 +555,17 @@ class _MemberFormSheetState extends State<MemberFormSheet> {
                               ),
                             ),
                           ),
+                          if (!_showShgSectionForRelationship)
+                            const Padding(
+                              padding: EdgeInsets.only(top: 16),
+                              child: Text(
+                                'Part of SHG is available for this relationship only when special group is Yes.',
+                                style: TextStyle(
+                                  color: Color(0xFF64748B),
+                                  fontSize: 12,
+                                ),
+                              ),
+                            ),
                           const SizedBox(height: 18),
                           Row(
                             children: [
