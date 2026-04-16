@@ -72,6 +72,28 @@ class _UuidMismatchRemoteService extends HouseholdRemoteService {
 void main() {
   late Directory tempDir;
   late OfflineSurveyService offline;
+  Map<String, dynamic> memberPayload(String ref, int sortOrder) => {
+        'device_member_ref': ref,
+        'sort_order': sortOrder,
+        'relationship_to_hof': 'spouse',
+        'member_name': 'Test Member',
+        'gender': 'M',
+        'age': 30,
+        'marital_status': 'Married',
+        'is_shg_member': false,
+        'shg_name': null,
+        'shg_code': null,
+        'special_group': null,
+        'is_job_card_holder': false,
+        'job_card_code': null,
+        'is_pmayg': false,
+        'pmayg_code': null,
+        'has_aadhaar': false,
+        'aadhaar_no': null,
+        'has_epic': false,
+        'epic_no': null,
+        'relationship_to_hof_other': null,
+      };
 
   setUpAll(() async {
     tempDir = await Directory.systemTemp.createTemp('shg_sync_test');
@@ -98,11 +120,11 @@ void main() {
     expect(
       () => builder.validateAndBuild(
         submission: {
-         'local_submission_uuid': 'sub-1',
+          'local_submission_uuid': 'sub-1',
           'household': {'device_household_ref': 'hh-1'},
           'members': [
-            {'device_member_ref': 'm-1', 'sort_order': 1},
-            {'device_member_ref': 'm-1', 'sort_order': 2},
+            memberPayload('m-1', 1),
+            memberPayload('m-1', 2),
           ],
         },
       ),
@@ -114,7 +136,7 @@ void main() {
     final id = await offline.saveHouseholdSurvey(
       household: {'device_household_ref': 'hh-10', 'district_id': 1},
       members: [
-        {'device_member_ref': 'm-1', 'sort_order': 1},
+        memberPayload('m-1', 1),
       ],
     );
 
@@ -132,7 +154,7 @@ void main() {
     await offline.saveHouseholdSurvey(
       household: {'device_household_ref': 'hh-20', 'district_id': 1},
       members: [
-        {'device_member_ref': 'm-1', 'sort_order': 1},
+        memberPayload('m-1', 1),
       ],
     );
 
@@ -154,7 +176,7 @@ void main() {
     await offline.saveHouseholdSurvey(
       household: {'device_household_ref': 'hh-22', 'district_id': 1},
       members: [
-        {'device_member_ref': 'm-1', 'sort_order': 1},
+        memberPayload('m-1', 1),
       ],
     );
 
@@ -173,7 +195,7 @@ void main() {
     await offline.saveHouseholdSurvey(
       household: {'device_household_ref': 'hh-30', 'district_id': 1},
       members: [
-        {'device_member_ref': 'm-1', 'sort_order': 1},
+        memberPayload('m-1', 1),
       ],
     );
 
@@ -195,7 +217,7 @@ void main() {
     await offline.saveHouseholdSurvey(
       household: {'device_household_ref': 'hh-31', 'district_id': 1},
       members: [
-        {'device_member_ref': 'm-1', 'sort_order': 1},
+        memberPayload('m-1', 1),
       ],
     );
 
@@ -243,7 +265,7 @@ void main() {
       'device_household_ref': 'hh-stale',
       'household': {'device_household_ref': 'hh-stale'},
       'members': [
-        {'device_member_ref': 'm-1', 'sort_order': 1},
+        memberPayload('m-1', 1),
       ],
       'sync_status': 'syncing',
       'sync_attempt_count': 1,
@@ -268,7 +290,7 @@ void main() {
     await offline.saveHouseholdSurvey(
       household: {'device_household_ref': 'hh-40', 'district_id': 1},
       members: [
-        {'device_member_ref': 'm-1', 'sort_order': 1},
+        memberPayload('m-1', 1),
       ],
     );
 
@@ -284,7 +306,7 @@ void main() {
     await offline.saveHouseholdSurvey(
       household: {'device_household_ref': 'hh-41', 'district_id': 1},
       members: [
-        {'device_member_ref': 'm-2', 'sort_order': 1},
+        memberPayload('m-2', 1),
       ],
     );
 

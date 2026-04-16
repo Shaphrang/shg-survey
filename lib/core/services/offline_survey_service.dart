@@ -22,19 +22,31 @@ class OfflineSurveyService {
     required Map<String, dynamic> household,
     required List<Map<String, dynamic>> members,
   }) async {
+    final normalizedSubmission = _payloadBuilder.normalizeSubmission({
+      'local_submission_uuid': _uuid.v4(),
+      'household': household,
+      'members': members,
+    });
     final now = DateTime.now().toUtc();
-    final householdCopy = Map<String, dynamic>.from(household);
+    final householdCopy =
+        Map<String, dynamic>.from(normalizedSubmission['household'] as Map);
 
     householdCopy['device_household_ref'] ??= newDeviceRef('hh');
 
-    final stableMembers = members.asMap().entries.map((entry) {
+    final normalizedMembers = (normalizedSubmission['members'] as List)
+        .whereType<Map>()
+        .map((e) => Map<String, dynamic>.from(e))
+        .toList(growable: false);
+
+    final stableMembers = normalizedMembers.asMap().entries.map((entry) {
       final original = Map<String, dynamic>.from(entry.value);
       original['device_member_ref'] ??= newDeviceRef('mem');
       original['sort_order'] ??= entry.key + 1;
       return original;
     }).toList(growable: false);
 
-    final localSubmissionUuid = _uuid.v4();
+    final localSubmissionUuid =
+        normalizedSubmission['local_submission_uuid']?.toString() ?? _uuid.v4();
     final record = {
       'local_submission_uuid': localSubmissionUuid,
       'device_household_ref': householdCopy['device_household_ref'],
@@ -55,7 +67,7 @@ class OfflineSurveyService {
       }),
       'last_server_status': null,
       'last_server_timestamp': null,
-      'schema_version': 2,
+      'schema_version': 3,
       'type': 'household_submission',
     };
 
@@ -68,7 +80,7 @@ class OfflineSurveyService {
   List<Map<String, dynamic>> listAll() {
     return _box.values
         .whereType<Map>()
-        .map((e) => Map<String, dynamic>.from(e))
+        .map((e) => _normalizeStoredRecord(Map<String, dynamic>.from(e)))
         .toList(growable: false)
       ..sort((a, b) {
         final aTime = DateTime.tryParse('${a['local_created_at']}');
@@ -210,7 +222,13 @@ class OfflineSurveyService {
     if (existing is! Map) {
       return null;
     }
-    return Map<String, dynamic>.from(existing);
+    return _normalizeStoredRecord(Map<String, dynamic>.from(existing));
+  }
+
+  Map<String, dynamic> _normalizeStoredRecord(Map<String, dynamic> record) {
+    final normalized = _payloadBuilder.normalizeSubmission(record);
+    normalized['schema_version'] = 3;
+    return normalized;
   }
 
   Future<void> clearAll() async => _box.clear();

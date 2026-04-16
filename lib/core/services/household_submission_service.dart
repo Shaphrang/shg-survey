@@ -52,17 +52,19 @@ class HouseholdSubmissionService {
     required Map<String, dynamic> household,
     required List<Map<String, dynamic>> members,
   }) async {
-    final submissionUuid = _uuid.v4();
-    final normalizedHousehold = Map<String, dynamic>.from(household);
-    final normalizedMembers = members
+    final generatedSubmissionUuid = _uuid.v4();
+    final submission = _payloadBuilder.normalizeSubmission({
+      'local_submission_uuid': generatedSubmissionUuid,
+      'household': household,
+      'members': members,
+    });
+    final submissionUuid = submission['local_submission_uuid'].toString();
+    final normalizedHousehold =
+        Map<String, dynamic>.from(submission['household'] as Map);
+    final normalizedMembers = (submission['members'] as List)
+        .whereType<Map>()
         .map((e) => Map<String, dynamic>.from(e))
         .toList(growable: false);
-
-    final submission = {
-      'local_submission_uuid': submissionUuid,
-      'household': normalizedHousehold,
-      'members': normalizedMembers,
-    };
 
     final payload = _payloadBuilder.validateAndBuild(submission: submission);
     final hasInternet = await _internetConnection.hasInternetAccess;

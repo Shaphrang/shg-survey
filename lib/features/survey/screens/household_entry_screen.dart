@@ -8,6 +8,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../core/services/household_submission_service.dart';
 import '../../../core/services/offline_survey_service.dart';
 import '../../../core/services/sync_service.dart';
+import '../../../core/sync/survey_payload_builder.dart';
 import 'location_setup_screen.dart';
 import '../widgets/survey_yes_no_field.dart';
 
@@ -27,6 +28,7 @@ class _HouseholdEntryScreenState extends State<HouseholdEntryScreen> with Widget
   final GlobalKey<ScaffoldState> scaffoldKey = GlobalKey<ScaffoldState>();
   final HouseholdSubmissionService householdSubmissionService =
       HouseholdSubmissionService();
+  final SurveyPayloadBuilder payloadBuilder = const SurveyPayloadBuilder();
 
   StreamSubscription<InternetStatus>? internetSubscription;
 
@@ -45,15 +47,19 @@ class _HouseholdEntryScreenState extends State<HouseholdEntryScreen> with Widget
   final TextEditingController hofGuardianSpecifyController =
       TextEditingController();
   final TextEditingController hofAgeController = TextEditingController();
-  final TextEditingController hofShgController = TextEditingController();
+  final TextEditingController hofShgNameController = TextEditingController();
+  final TextEditingController hofShgCodeController = TextEditingController();
   final TextEditingController hofAadhaarController = TextEditingController();
   final TextEditingController hofEpicController = TextEditingController();
+  final TextEditingController hofPmaygCodeController = TextEditingController();
+  final TextEditingController hofJobCardCodeController = TextEditingController();
 
   String? hofType;
   String? hofGender;
   String? hofMaritalStatus;
   bool hofIsShgMember = false;
   bool hofIsJobCardHolder = false;
+  bool hofIsPmayg = false;
   bool hofHasAadhaar = false;
   bool hofHasEpic = false;
   bool hofIsSpecialGroup = false;
@@ -94,9 +100,12 @@ class _HouseholdEntryScreenState extends State<HouseholdEntryScreen> with Widget
     hofNameController.dispose();
     hofGuardianSpecifyController.dispose();
     hofAgeController.dispose();
-    hofShgController.dispose();
+    hofShgNameController.dispose();
+    hofShgCodeController.dispose();
     hofAadhaarController.dispose();
     hofEpicController.dispose();
+    hofPmaygCodeController.dispose();
+    hofJobCardCodeController.dispose();
 
     super.dispose();
   }
@@ -189,10 +198,6 @@ class _HouseholdEntryScreenState extends State<HouseholdEntryScreen> with Widget
     return int.tryParse(text.trim());
   }
 
-  bool specialGroupIsPwd(String? value) {
-    return value == 'PWD';
-  }
-
   String? validateHof() {
     if (hofNameController.text.trim().isEmpty) {
       return 'Please enter head of family name';
@@ -223,21 +228,12 @@ class _HouseholdEntryScreenState extends State<HouseholdEntryScreen> with Widget
       return 'Please select marital status';
     }
 
-    if (hofIsShgMember && hofShgController.text.trim().isEmpty) {
-      return 'Please enter SHG name or code';
+    if (hofIsShgMember && hofShgNameController.text.trim().isEmpty) {
+      return 'Please enter SHG name';
     }
 
     if (hofIsSpecialGroup && hofSpecialGroup == null) {
       return 'Please select the special group type';
-    }
-
-    if (hofHasAadhaar &&
-        !RegExp(r'^\d{12}$').hasMatch(hofAadhaarController.text.trim())) {
-      return 'Aadhaar must be 12 digits';
-    }
-
-    if (hofHasEpic && hofEpicController.text.trim().isEmpty) {
-      return 'Please enter EPIC number';
     }
 
     return null;
@@ -259,7 +255,7 @@ class _HouseholdEntryScreenState extends State<HouseholdEntryScreen> with Widget
 
     if (result == null) return;
 
-    final prepared = Map<String, dynamic>.from(result);
+    final prepared = payloadBuilder.normalizeMember(Map<String, dynamic>.from(result));
     prepared['device_member_ref'] ??= offlineService.newDeviceRef('mem');
 
     setState(() {
@@ -326,10 +322,14 @@ class _HouseholdEntryScreenState extends State<HouseholdEntryScreen> with Widget
         "age": parseAge(hofAgeController.text),
         "marital_status": hofMaritalStatus,
         "is_shg_member": hofIsShgMember,
-        "shg_name_or_code": hofIsShgMember ? hofShgController.text.trim() : null,
+        "shg_name": hofIsShgMember ? hofShgNameController.text.trim() : null,
+        "shg_code": hofIsShgMember ? hofShgCodeController.text.trim() : null,
         "special_group": hofIsSpecialGroup ? hofSpecialGroup : null,
         "is_job_card_holder": hofIsJobCardHolder,
-        "is_pwd": specialGroupIsPwd(hofSpecialGroup),
+        "job_card_code":
+            hofIsJobCardHolder ? hofJobCardCodeController.text.trim() : null,
+        "is_pmayg": hofIsPmayg,
+        "pmayg_code": hofIsPmayg ? hofPmaygCodeController.text.trim() : null,
         "has_aadhaar": hofHasAadhaar,
         "aadhaar_no": hofHasAadhaar ? hofAadhaarController.text.trim() : null,
         "has_epic": hofHasEpic,
@@ -479,15 +479,19 @@ class _HouseholdEntryScreenState extends State<HouseholdEntryScreen> with Widget
       hofNameController.clear();
       hofGuardianSpecifyController.clear();
       hofAgeController.clear();
-      hofShgController.clear();
+      hofShgNameController.clear();
+      hofShgCodeController.clear();
       hofAadhaarController.clear();
       hofEpicController.clear();
+      hofPmaygCodeController.clear();
+      hofJobCardCodeController.clear();
 
       hofType = null;
       hofGender = null;
       hofMaritalStatus = null;
       hofIsShgMember = false;
       hofIsJobCardHolder = false;
+      hofIsPmayg = false;
       hofHasAadhaar = false;
       hofHasEpic = false;
       hofIsSpecialGroup = false;
@@ -1209,18 +1213,54 @@ Widget _buildSoftGlow({
               setState(() {
                 hofIsShgMember = value;
                 if (!value) {
-                  hofShgController.clear();
+                  hofShgNameController.clear();
+                  hofShgCodeController.clear();
                 }
               });
             },
           ),
           buildAnimatedConditional(
             show: hofIsShgMember,
+            child: Column(
+              children: [
+                TextField(
+                  controller: hofShgNameController,
+                  decoration: const InputDecoration(
+                    labelText: "SHG Name",
+                    prefixIcon: Icon(Icons.groups_rounded),
+                  ),
+                ),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: hofShgCodeController,
+                  decoration: const InputDecoration(
+                    labelText: "SHG Code (Optional)",
+                    prefixIcon: Icon(Icons.qr_code_rounded),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 16),
+          SurveyYesNoField(
+            title: "PMAY-G Beneficiary",
+            value: hofIsPmayg,
+            onChanged: (value) {
+              setState(() {
+                hofIsPmayg = value;
+                if (!value) {
+                  hofPmaygCodeController.clear();
+                }
+              });
+            },
+          ),
+          buildAnimatedConditional(
+            show: hofIsPmayg,
             child: TextField(
-              controller: hofShgController,
+              controller: hofPmaygCodeController,
               decoration: const InputDecoration(
-                labelText: "SHG Name / Code",
-                prefixIcon: Icon(Icons.groups_rounded),
+                labelText: "PMAY-G Code (Optional)",
+                prefixIcon: Icon(Icons.home_work_outlined),
               ),
             ),
           ),
@@ -1267,8 +1307,21 @@ Widget _buildSoftGlow({
             onChanged: (value) {
               setState(() {
                 hofIsJobCardHolder = value;
+                if (!value) {
+                  hofJobCardCodeController.clear();
+                }
               });
             },
+          ),
+          buildAnimatedConditional(
+            show: hofIsJobCardHolder,
+            child: TextField(
+              controller: hofJobCardCodeController,
+              decoration: const InputDecoration(
+                labelText: "Job Card Code (Optional)",
+                prefixIcon: Icon(Icons.badge_outlined),
+              ),
+            ),
           ),
           const SizedBox(height: 16),
           SurveyYesNoField(
@@ -1287,12 +1340,9 @@ Widget _buildSoftGlow({
             show: hofHasAadhaar,
             child: TextField(
               controller: hofAadhaarController,
-              keyboardType: TextInputType.number,
-              maxLength: 12,
               decoration: const InputDecoration(
-                labelText: "Aadhaar Number",
+                labelText: "Aadhaar Number (Optional)",
                 prefixIcon: Icon(Icons.credit_card_rounded),
-                counterText: "",
               ),
             ),
           ),
@@ -1314,7 +1364,7 @@ Widget _buildSoftGlow({
             child: TextField(
               controller: hofEpicController,
               decoration: const InputDecoration(
-                labelText: "EPIC Number",
+                labelText: "EPIC Number (Optional)",
                 prefixIcon: Icon(Icons.how_to_vote_rounded),
               ),
             ),
@@ -1395,12 +1445,22 @@ Widget _buildSoftGlow({
                             ),
                             const SizedBox(height: 2),
                             Text(
-                              "${formatRelationship(member["relationship_to_hof"]?.toString())} • ${member["gender"]} • ${member["age"]}",
+                              "${formatRelationship(member["relationship_to_hof"]?.toString())} • ${formatGender(member["gender"]?.toString())} • ${member["age"]}",
                               style: const TextStyle(
                                 color: Color(0xFF64748B),
                                 fontSize: 12.5,
                               ),
                             ),
+                            if (buildMemberMeta(member).isNotEmpty) ...[
+                              const SizedBox(height: 2),
+                              Text(
+                                buildMemberMeta(member),
+                                style: const TextStyle(
+                                  color: Color(0xFF64748B),
+                                  fontSize: 11.5,
+                                ),
+                              ),
+                            ],
                           ],
                         ),
                       ),
@@ -1475,6 +1535,65 @@ Widget _buildSoftGlow({
       default:
         return 'Member';
     }
+  }
+
+  String formatGender(String? value) {
+    switch (value) {
+      case 'M':
+        return 'Male';
+      case 'F':
+        return 'Female';
+      default:
+        return '-';
+    }
+  }
+
+  String buildMemberMeta(Map<String, dynamic> member) {
+    final parts = <String>[];
+    final relationship = member['relationship_to_hof']?.toString();
+    final relationshipOther = member['relationship_to_hof_other']?.toString();
+    if (relationship == 'other' &&
+        relationshipOther != null &&
+        relationshipOther.trim().isNotEmpty) {
+      parts.add('Other: ${relationshipOther.trim()}');
+    }
+
+    if (member['is_shg_member'] == true) {
+      final shgName = member['shg_name']?.toString();
+      final shgCode = member['shg_code']?.toString();
+      if (shgName != null && shgName.trim().isNotEmpty) {
+        parts.add('SHG: ${shgName.trim()}');
+      }
+      if (shgCode != null && shgCode.trim().isNotEmpty) {
+        parts.add('SHG Code: ${shgCode.trim()}');
+      }
+    }
+
+    if (member['has_aadhaar'] == true) {
+      final aadhaar = member['aadhaar_no']?.toString();
+      if (aadhaar != null && aadhaar.trim().isNotEmpty) {
+        parts.add('Aadhaar: ${aadhaar.trim()}');
+      }
+    }
+    if (member['has_epic'] == true) {
+      final epic = member['epic_no']?.toString();
+      if (epic != null && epic.trim().isNotEmpty) {
+        parts.add('EPIC: ${epic.trim()}');
+      }
+    }
+    if (member['is_pmayg'] == true) {
+      final pmayg = member['pmayg_code']?.toString();
+      if (pmayg != null && pmayg.trim().isNotEmpty) {
+        parts.add('PMAY-G: ${pmayg.trim()}');
+      }
+    }
+    if (member['is_job_card_holder'] == true) {
+      final jobCard = member['job_card_code']?.toString();
+      if (jobCard != null && jobCard.trim().isNotEmpty) {
+        parts.add('Job Card: ${jobCard.trim()}');
+      }
+    }
+    return parts.join(' • ');
   }
 
   Widget buildSectionCard({
@@ -1727,6 +1846,7 @@ class MemberFormSheet extends StatefulWidget {
 
 class _MemberFormSheetState extends State<MemberFormSheet> {
   final GlobalKey<FormState> formKey = GlobalKey<FormState>();
+  final SurveyPayloadBuilder payloadBuilder = const SurveyPayloadBuilder();
   static const List<String> relationshipOptions = [
     'spouse',
     'son',
@@ -1756,9 +1876,14 @@ class _MemberFormSheetState extends State<MemberFormSheet> {
 
   final TextEditingController nameController = TextEditingController();
   final TextEditingController ageController = TextEditingController();
-  final TextEditingController shgController = TextEditingController();
+  final TextEditingController relationshipOtherController =
+      TextEditingController();
+  final TextEditingController shgNameController = TextEditingController();
+  final TextEditingController shgCodeController = TextEditingController();
   final TextEditingController aadhaarController = TextEditingController();
   final TextEditingController epicController = TextEditingController();
+  final TextEditingController pmaygCodeController = TextEditingController();
+  final TextEditingController jobCardCodeController = TextEditingController();
 
   String? relationship;
   String? gender;
@@ -1767,6 +1892,7 @@ class _MemberFormSheetState extends State<MemberFormSheet> {
 
   bool isShgMember = false;
   bool isJobCardHolder = false;
+  bool isPmayg = false;
   bool isSpecialGroup = false;
   bool hasAadhaar = false;
   bool hasEpic = false;
@@ -1780,13 +1906,21 @@ class _MemberFormSheetState extends State<MemberFormSheet> {
   void initState() {
     super.initState();
 
-    final m = widget.initialMember;
+    final rawMember = widget.initialMember;
+    final m = rawMember == null
+        ? null
+        : payloadBuilder.normalizeMember(Map<String, dynamic>.from(rawMember));
     if (m != null) {
       nameController.text = (m["member_name"] ?? "").toString();
       ageController.text = (m["age"] ?? "").toString();
-      shgController.text = (m["shg_name_or_code"] ?? "").toString();
+      relationshipOtherController.text =
+          (m["relationship_to_hof_other"] ?? "").toString();
+      shgNameController.text = (m["shg_name"] ?? "").toString();
+      shgCodeController.text = (m["shg_code"] ?? "").toString();
       aadhaarController.text = (m["aadhaar_no"] ?? "").toString();
       epicController.text = (m["epic_no"] ?? "").toString();
+      pmaygCodeController.text = (m["pmayg_code"] ?? "").toString();
+      jobCardCodeController.text = (m["job_card_code"] ?? "").toString();
 
       relationship = m["relationship_to_hof"]?.toString();
       gender = m["gender"]?.toString();
@@ -1795,6 +1929,7 @@ class _MemberFormSheetState extends State<MemberFormSheet> {
 
       isShgMember = m["is_shg_member"] == true;
       isJobCardHolder = m["is_job_card_holder"] == true;
+      isPmayg = m["is_pmayg"] == true;
       isSpecialGroup = specialGroup != null && specialGroup!.isNotEmpty;
       hasAadhaar = m["has_aadhaar"] == true;
       hasEpic = m["has_epic"] == true;
@@ -1805,15 +1940,14 @@ class _MemberFormSheetState extends State<MemberFormSheet> {
   void dispose() {
     nameController.dispose();
     ageController.dispose();
-    shgController.dispose();
+    relationshipOtherController.dispose();
+    shgNameController.dispose();
+    shgCodeController.dispose();
     aadhaarController.dispose();
     epicController.dispose();
+    pmaygCodeController.dispose();
+    jobCardCodeController.dispose();
     super.dispose();
-  }
-
-  
-  bool specialGroupIsPwd(String? value) {
-    return value == 'PWD';
   }
 
   void submit() {
@@ -1838,15 +1972,21 @@ class _MemberFormSheetState extends State<MemberFormSheet> {
     Navigator.pop(context, {
       "device_member_ref": widget.initialMember?["device_member_ref"],
       "relationship_to_hof": relationship,
+      "relationship_to_hof_other":
+          relationship == 'other' ? relationshipOtherController.text.trim() : null,
       "member_name": nameController.text.trim(),
       "gender": gender,
       "age": int.parse(ageController.text.trim()),
       "marital_status": maritalStatus,
       "is_shg_member": isShgMember,
-      "shg_name_or_code": isShgMember ? shgController.text.trim() : null,
+      "shg_name": isShgMember ? shgNameController.text.trim() : null,
+      "shg_code": isShgMember ? shgCodeController.text.trim() : null,
       "special_group": isSpecialGroup ? specialGroup : null,
       "is_job_card_holder": isJobCardHolder,
-      "is_pwd": specialGroupIsPwd(specialGroup),
+      "job_card_code":
+          isJobCardHolder ? jobCardCodeController.text.trim() : null,
+      "is_pmayg": isPmayg,
+      "pmayg_code": isPmayg ? pmaygCodeController.text.trim() : null,
       "has_aadhaar": hasAadhaar,
       "aadhaar_no": hasAadhaar ? aadhaarController.text.trim() : null,
       "has_epic": hasEpic,
@@ -1946,8 +2086,28 @@ class _MemberFormSheetState extends State<MemberFormSheet> {
                               setState(() {
                                 relationship = value;
                                 relationshipError = null;
+                                if (value != 'other') {
+                                  relationshipOtherController.clear();
+                                }
                               });
                             },
+                          ),
+                          buildAnimatedConditional(
+                            show: relationship == 'other',
+                            child: TextFormField(
+                              controller: relationshipOtherController,
+                              decoration: const InputDecoration(
+                                labelText: "Specify Relationship",
+                                prefixIcon: Icon(Icons.edit_note_rounded),
+                              ),
+                              validator: (value) {
+                                if (relationship == 'other' &&
+                                    (value == null || value.trim().isEmpty)) {
+                                  return 'Please specify relationship';
+                                }
+                                return null;
+                              },
+                            ),
                           ),
                           const SizedBox(height: 16),
                           TextFormField(
@@ -2018,24 +2178,41 @@ class _MemberFormSheetState extends State<MemberFormSheet> {
                             onChanged: (value) {
                               setState(() {
                                 isShgMember = value;
-                                if (!value) shgController.clear();
+                                if (!value) {
+                                  shgNameController.clear();
+                                  shgCodeController.clear();
+                                }
                               });
                             },
                           ),
                           buildAnimatedConditional(
                             show: isShgMember,
-                            child: TextFormField(
-                              controller: shgController,
-                              decoration: const InputDecoration(
-                                labelText: "SHG Name / Code",
-                                prefixIcon: Icon(Icons.groups_rounded),
-                              ),
-                                                          validator: (value) {
-                                if (isShgMember && (value == null || value.trim().isEmpty)) {
-                                  return 'Please enter SHG name or code';
-                                }
-                                return null;
-                              },
+                            child: Column(
+                              children: [
+                                TextFormField(
+                                  controller: shgNameController,
+                                  decoration: const InputDecoration(
+                                    labelText: "SHG Name",
+                                    prefixIcon: Icon(Icons.groups_rounded),
+                                  ),
+                                  validator: (value) {
+                                    if (isShgMember &&
+                                        (value == null ||
+                                            value.trim().isEmpty)) {
+                                      return 'Please enter SHG name';
+                                    }
+                                    return null;
+                                  },
+                                ),
+                                const SizedBox(height: 12),
+                                TextFormField(
+                                  controller: shgCodeController,
+                                  decoration: const InputDecoration(
+                                    labelText: "SHG Code (Optional)",
+                                    prefixIcon: Icon(Icons.qr_code_rounded),
+                                  ),
+                                ),
+                              ],
                             ),
                           ),
                           const SizedBox(height: 16),
@@ -2080,8 +2257,44 @@ class _MemberFormSheetState extends State<MemberFormSheet> {
                             onChanged: (value) {
                               setState(() {
                                 isJobCardHolder = value;
+                                if (!value) {
+                                  jobCardCodeController.clear();
+                                }
                               });
                             },
+                          ),
+                          buildAnimatedConditional(
+                            show: isJobCardHolder,
+                            child: TextFormField(
+                              controller: jobCardCodeController,
+                              decoration: const InputDecoration(
+                                labelText: "Job Card Code (Optional)",
+                                prefixIcon: Icon(Icons.badge_outlined),
+                              ),
+                            ),
+                          ),
+                          const SizedBox(height: 16),
+                          SurveyYesNoField(
+                            title: "PMAY-G Beneficiary",
+                            value: isPmayg,
+                            onChanged: (value) {
+                              setState(() {
+                                isPmayg = value;
+                                if (!value) {
+                                  pmaygCodeController.clear();
+                                }
+                              });
+                            },
+                          ),
+                          buildAnimatedConditional(
+                            show: isPmayg,
+                            child: TextFormField(
+                              controller: pmaygCodeController,
+                              decoration: const InputDecoration(
+                                labelText: "PMAY-G Code (Optional)",
+                                prefixIcon: Icon(Icons.home_work_outlined),
+                              ),
+                            ),
                           ),
                           const SizedBox(height: 16),
                           SurveyYesNoField(
@@ -2098,20 +2311,10 @@ class _MemberFormSheetState extends State<MemberFormSheet> {
                             show: hasAadhaar,
                             child: TextFormField(
                               controller: aadhaarController,
-                              keyboardType: TextInputType.number,
-                              maxLength: 12,
                               decoration: const InputDecoration(
-                                labelText: "Aadhaar Number",
+                                labelText: "Aadhaar Number (Optional)",
                                 prefixIcon: Icon(Icons.credit_card_rounded),
-                                counterText: "",
                               ),
-                              validator: (value) {
-                                if (!hasAadhaar) return null;
-                                if (!RegExp(r'^\\d{12}$').hasMatch((value ?? '').trim())) {
-                                  return 'Aadhaar must be 12 digits';
-                                }
-                                return null;
-                              },
                             ),
                           ),
                           const SizedBox(height: 16),
@@ -2130,15 +2333,9 @@ class _MemberFormSheetState extends State<MemberFormSheet> {
                             child: TextFormField(
                               controller: epicController,
                               decoration: const InputDecoration(
-                                labelText: "EPIC Number",
+                                labelText: "EPIC Number (Optional)",
                                 prefixIcon: Icon(Icons.how_to_vote_rounded),
                               ),
-                              validator: (value) {
-                                if (hasEpic && (value == null || value.trim().isEmpty)) {
-                                  return 'Please enter EPIC number';
-                                }
-                                return null;
-                              },
                             ),
                           ),
                           const SizedBox(height: 18),
