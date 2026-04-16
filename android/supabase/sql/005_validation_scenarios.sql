@@ -12,14 +12,18 @@
 with vars as (
   select
     gen_random_uuid() as submission_uuid,
-    'hh_test_001'::text as device_household_ref
+    'hh_test_001'::text as device_household_ref,
+    '00000000-0000-0000-0000-000000000001'::uuid as district_id,
+    '00000000-0000-0000-0000-000000000002'::uuid as block_id,
+    '00000000-0000-0000-0000-000000000003'::uuid as village_id
 )
 select public.save_household_survey(
   jsonb_build_object(
     'device_household_ref', (select device_household_ref from vars),
-    'district_id', 1,
-    'block_id', 1,
-    'village_id', 1,
+    'hh_test_001'::text as device_household_ref,
+    '00000000-0000-0000-0000-000000000001'::uuid as district_id,
+    '00000000-0000-0000-0000-000000000002'::uuid as block_id,
+    '00000000-0000-0000-0000-000000000003'::uuid as village_id
     'hof_name', 'Test HOF',
     'hof_type', 'father'
   ),

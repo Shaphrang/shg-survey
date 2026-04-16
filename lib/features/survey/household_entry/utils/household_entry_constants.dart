@@ -3,7 +3,6 @@ const List<String> maritalOptions = [
   'Married',
   'Widowed',
   'Separated',
-  'Divorced',
 ];
 
 const List<String> specialGroupOptions = [

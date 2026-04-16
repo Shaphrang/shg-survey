@@ -115,6 +115,15 @@ class HofSectionCard extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 16),
+          TextField(
+            controller: data.hofAgeController,
+            keyboardType: TextInputType.number,
+            decoration: const InputDecoration(
+              labelText: 'Age',
+              prefixIcon: Icon(Icons.cake_rounded),
+            ),
+          ),
+          const SizedBox(height: 16),
           ChoiceSegmentedField(
             title: 'Gender',
             options: const [
@@ -123,15 +132,6 @@ class HofSectionCard extends StatelessWidget {
             ],
             selectedValue: data.hofGender,
             onSelected: onHofGenderChanged,
-          ),
-          const SizedBox(height: 16),
-          TextField(
-            controller: data.hofAgeController,
-            keyboardType: TextInputType.number,
-            decoration: const InputDecoration(
-              labelText: 'Age',
-              prefixIcon: Icon(Icons.cake_rounded),
-            ),
           ),
           const SizedBox(height: 16),
           DropdownButtonFormField<String>(
@@ -149,6 +149,31 @@ class HofSectionCard extends StatelessWidget {
                 )
                 .toList(),
             onChanged: onMaritalStatusChanged,
+          ),
+          const SizedBox(height: 16),
+          SurveyYesNoField(
+            title: 'Is part of a special group',
+            value: data.hofIsSpecialGroup,
+            onChanged: onSpecialGroupChanged,
+          ),
+          AnimatedVisibilitySection(
+            show: data.hofIsSpecialGroup,
+            child: DropdownButtonFormField<String>(
+              initialValue: data.hofSpecialGroup,
+              decoration: const InputDecoration(
+                labelText: 'Special Group Type',
+                prefixIcon: Icon(Icons.workspace_premium_rounded),
+              ),
+              items: specialGroupOptions
+                  .map(
+                    (e) => DropdownMenuItem<String>(
+                      value: e,
+                      child: Text(e),
+                    ),
+                  )
+                  .toList(),
+              onChanged: onSpecialGroupTypeChanged,
+            ),
           ),
           const SizedBox(height: 16),
           SurveyYesNoField(
@@ -192,31 +217,6 @@ class HofSectionCard extends StatelessWidget {
                 labelText: 'PMAY-G Code (Optional)',
                 prefixIcon: Icon(Icons.home_work_outlined),
               ),
-            ),
-          ),
-          const SizedBox(height: 16),
-          SurveyYesNoField(
-            title: 'Is part of a special group',
-            value: data.hofIsSpecialGroup,
-            onChanged: onSpecialGroupChanged,
-          ),
-          AnimatedVisibilitySection(
-            show: data.hofIsSpecialGroup,
-            child: DropdownButtonFormField<String>(
-              initialValue: data.hofSpecialGroup,
-              decoration: const InputDecoration(
-                labelText: 'Special Group Type',
-                prefixIcon: Icon(Icons.workspace_premium_rounded),
-              ),
-              items: specialGroupOptions
-                  .map(
-                    (e) => DropdownMenuItem<String>(
-                      value: e,
-                      child: Text(e),
-                    ),
-                  )
-                  .toList(),
-              onChanged: onSpecialGroupTypeChanged,
             ),
           ),
           const SizedBox(height: 16),

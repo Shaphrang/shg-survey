@@ -270,22 +270,6 @@ class _MemberFormSheetState extends State<MemberFormSheet> {
                                     : null,
                           ),
                           const SizedBox(height: 16),
-                          ChoiceSegmentedField(
-                            title: 'Gender',
-                            options: const [
-                              ChoiceOption('M', 'Male'),
-                              ChoiceOption('F', 'Female'),
-                            ],
-                            selectedValue: gender,
-                            errorText: genderError,
-                            onSelected: (value) {
-                              setState(() {
-                                gender = value;
-                                genderError = null;
-                              });
-                            },
-                          ),
-                          const SizedBox(height: 16),
                           TextFormField(
                             controller: ageController,
                             keyboardType: TextInputType.number,
@@ -299,6 +283,22 @@ class _MemberFormSheetState extends State<MemberFormSheet> {
                                 return 'Please enter valid age';
                               }
                               return null;
+                            },
+                          ),
+                          const SizedBox(height: 16),
+                          ChoiceSegmentedField(
+                            title: 'Gender',
+                            options: const [
+                              ChoiceOption('M', 'Male'),
+                              ChoiceOption('F', 'Female'),
+                            ],
+                            selectedValue: gender,
+                            errorText: genderError,
+                            onSelected: (value) {
+                              setState(() {
+                                gender = value;
+                                genderError = null;
+                              });
                             },
                           ),
                           const SizedBox(height: 16),
@@ -321,6 +321,44 @@ class _MemberFormSheetState extends State<MemberFormSheet> {
                                 maritalStatusError = null;
                               });
                             },
+                          ),
+                          const SizedBox(height: 16),
+                          SurveyYesNoField(
+                            title: 'Is part of a special group',
+                            value: isSpecialGroup,
+                            onChanged: (value) {
+                              setState(() {
+                                isSpecialGroup = value;
+                                if (!value) specialGroup = null;
+                              });
+                            },
+                          ),
+                          AnimatedVisibilitySection(
+                            show: isSpecialGroup,
+                            child: DropdownButtonFormField<String>(
+                              initialValue: specialGroup,
+                              decoration: const InputDecoration(
+                                labelText: 'Special Group Type',
+                                prefixIcon: Icon(Icons.workspace_premium_rounded),
+                              ),
+                              items: specialGroupOptions
+                                  .map((e) => DropdownMenuItem<String>(
+                                        value: e,
+                                        child: Text(e),
+                                      ))
+                                  .toList(),
+                              onChanged: (value) {
+                                setState(() {
+                                  specialGroup = value;
+                                });
+                              },
+                              validator: (value) {
+                                if (isSpecialGroup && value == null) {
+                                  return 'Please select special group type';
+                                }
+                                return null;
+                              },
+                            ),
                           ),
                           const SizedBox(height: 16),
                           SurveyYesNoField(
@@ -367,44 +405,6 @@ class _MemberFormSheetState extends State<MemberFormSheet> {
                           ),
                           const SizedBox(height: 16),
                           SurveyYesNoField(
-                            title: 'Is part of a special group',
-                            value: isSpecialGroup,
-                            onChanged: (value) {
-                              setState(() {
-                                isSpecialGroup = value;
-                                if (!value) specialGroup = null;
-                              });
-                            },
-                          ),
-                          AnimatedVisibilitySection(
-                            show: isSpecialGroup,
-                            child: DropdownButtonFormField<String>(
-                              initialValue: specialGroup,
-                              decoration: const InputDecoration(
-                                labelText: 'Special Group Type',
-                                prefixIcon: Icon(Icons.workspace_premium_rounded),
-                              ),
-                              items: specialGroupOptions
-                                  .map((e) => DropdownMenuItem<String>(
-                                        value: e,
-                                        child: Text(e),
-                                      ))
-                                  .toList(),
-                              onChanged: (value) {
-                                setState(() {
-                                  specialGroup = value;
-                                });
-                              },
-                              validator: (value) {
-                                if (isSpecialGroup && value == null) {
-                                  return 'Please select special group type';
-                                }
-                                return null;
-                              },
-                            ),
-                          ),
-                          const SizedBox(height: 16),
-                          SurveyYesNoField(
                             title: 'Job Card Holder',
                             value: isJobCardHolder,
                             onChanged: (value) {
@@ -423,29 +423,6 @@ class _MemberFormSheetState extends State<MemberFormSheet> {
                               decoration: const InputDecoration(
                                 labelText: 'Job Card Code (Optional)',
                                 prefixIcon: Icon(Icons.badge_outlined),
-                              ),
-                            ),
-                          ),
-                          const SizedBox(height: 16),
-                          SurveyYesNoField(
-                            title: 'PMAY-G Beneficiary',
-                            value: isPmayg,
-                            onChanged: (value) {
-                              setState(() {
-                                isPmayg = value;
-                                if (!value) {
-                                  pmaygCodeController.clear();
-                                }
-                              });
-                            },
-                          ),
-                          AnimatedVisibilitySection(
-                            show: isPmayg,
-                            child: TextFormField(
-                              controller: pmaygCodeController,
-                              decoration: const InputDecoration(
-                                labelText: 'PMAY-G Code (Optional)',
-                                prefixIcon: Icon(Icons.home_work_outlined),
                               ),
                             ),
                           ),
