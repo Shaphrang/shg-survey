@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import '../../widgets/survey_yes_no_field.dart';
 import '../utils/household_entry_constants.dart';
@@ -26,6 +27,10 @@ class HofSectionData {
   final bool hofHasEpic;
   final bool hofIsSpecialGroup;
   final String? hofSpecialGroup;
+  final bool showShgField;
+  final List<String> availableSpecialGroups;
+  final String? hofGenderErrorText;
+  final String? hofAadhaarErrorText;
 
   const HofSectionData({
     required this.hofNameController,
@@ -47,6 +52,10 @@ class HofSectionData {
     required this.hofHasEpic,
     required this.hofIsSpecialGroup,
     required this.hofSpecialGroup,
+    required this.showShgField,
+    required this.availableSpecialGroups,
+    required this.hofGenderErrorText,
+    required this.hofAadhaarErrorText,
   });
 }
 
@@ -131,6 +140,7 @@ class HofSectionCard extends StatelessWidget {
               ChoiceOption('F', 'Female'),
             ],
             selectedValue: data.hofGender,
+            errorText: data.hofGenderErrorText,
             onSelected: onHofGenderChanged,
           ),
           const SizedBox(height: 16),
@@ -164,7 +174,7 @@ class HofSectionCard extends StatelessWidget {
                 labelText: 'Special Group Type',
                 prefixIcon: Icon(Icons.workspace_premium_rounded),
               ),
-              items: specialGroupOptions
+              items: data.availableSpecialGroups
                   .map(
                     (e) => DropdownMenuItem<String>(
                       value: e,
@@ -176,13 +186,16 @@ class HofSectionCard extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 16),
-          SurveyYesNoField(
-            title: 'Part of SHG',
-            value: data.hofIsShgMember,
-            onChanged: onShgChanged,
+          AnimatedVisibilitySection(
+            show: data.showShgField,
+            child: SurveyYesNoField(
+              title: 'Part of SHG',
+              value: data.hofIsShgMember,
+              onChanged: onShgChanged,
+            ),
           ),
           AnimatedVisibilitySection(
-            show: data.hofIsShgMember,
+            show: data.showShgField && data.hofIsShgMember,
             child: Column(
               children: [
                 TextField(
@@ -245,9 +258,15 @@ class HofSectionCard extends StatelessWidget {
             show: data.hofHasAadhaar,
             child: TextField(
               controller: data.hofAadhaarController,
-              decoration: const InputDecoration(
+              keyboardType: TextInputType.number,
+              inputFormatters: const [
+                FilteringTextInputFormatter.digitsOnly,
+                LengthLimitingTextInputFormatter(12),
+              ],
+              decoration: InputDecoration(
                 labelText: 'Aadhaar Number (Optional)',
                 prefixIcon: Icon(Icons.credit_card_rounded),
+                errorText: data.hofAadhaarErrorText,
               ),
             ),
           ),

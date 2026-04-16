@@ -5,7 +5,7 @@ import 'survey_section_card.dart';
 
 class MembersSectionCard extends StatelessWidget {
   final List<Map<String, dynamic>> members;
-  final VoidCallback onAdd;
+  final VoidCallback? onAdd;
   final void Function(int index) onEdit;
   final void Function(int index) onDelete;
 
