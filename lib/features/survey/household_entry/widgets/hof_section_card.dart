@@ -17,6 +17,7 @@ class HofSectionData {
   final TextEditingController hofEpicController;
   final TextEditingController hofPmaygCodeController;
   final TextEditingController hofJobCardCodeController;
+  final FocusNode hofNameFocusNode;
   final String? hofType;
   final String? hofGender;
   final String? hofMaritalStatus;
@@ -42,6 +43,7 @@ class HofSectionData {
     required this.hofEpicController,
     required this.hofPmaygCodeController,
     required this.hofJobCardCodeController,
+    required this.hofNameFocusNode,
     required this.hofType,
     required this.hofGender,
     required this.hofMaritalStatus,
@@ -93,10 +95,12 @@ class HofSectionCard extends StatelessWidget {
       title: 'Head of Family',
       subtitle: 'First entry will also be saved as member #1',
       icon: Icons.badge_rounded,
+      onTap: () => FocusScope.of(context).requestFocus(data.hofNameFocusNode),
       child: Column(
         children: [
           TextField(
             controller: data.hofNameController,
+            focusNode: data.hofNameFocusNode,
             decoration: const InputDecoration(
               labelText: 'HOF Name',
               prefixIcon: Icon(Icons.person_rounded),

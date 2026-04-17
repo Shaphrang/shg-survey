@@ -11,10 +11,12 @@ import 'choice_segmented_field.dart';
 
 class MemberFormSheet extends StatefulWidget {
   final Map<String, dynamic>? initialMember;
+  final List<String> relationshipOptions;
 
   const MemberFormSheet({
     super.key,
     this.initialMember,
+    required this.relationshipOptions,
   });
 
   @override
@@ -135,6 +137,12 @@ class _MemberFormSheetState extends State<MemberFormSheet> {
       hasEpic = m['has_epic'] == true;
     }
 
+    if (relationship != null &&
+        !widget.relationshipOptions.contains(relationship)) {
+      relationship = null;
+      relationshipOtherController.clear();
+    }
+
     _syncMemberDependentState();
   }
 
@@ -205,17 +213,20 @@ class _MemberFormSheetState extends State<MemberFormSheet> {
   Widget build(BuildContext context) {
     final isEditing = widget.initialMember != null;
 
-    return Container(
-      decoration: const BoxDecoration(
-        color: Color(0xFFF5F7FB),
-        borderRadius: BorderRadius.vertical(top: Radius.circular(30)),
-      ),
-      child: SafeArea(
-        top: false,
-        child: AnimatedPadding(
-          duration: const Duration(milliseconds: 180),
-          padding: EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom),
-          child: Column(
+    return GestureDetector(
+      behavior: HitTestBehavior.translucent,
+      onTap: () => FocusManager.instance.primaryFocus?.unfocus(),
+      child: Container(
+        decoration: const BoxDecoration(
+          color: Color(0xFFF5F7FB),
+          borderRadius: BorderRadius.vertical(top: Radius.circular(30)),
+        ),
+        child: SafeArea(
+          top: false,
+          child: AnimatedPadding(
+            duration: const Duration(milliseconds: 180),
+            padding: EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom),
+            child: Column(
             children: [
               const SizedBox(height: 10),
               Container(
@@ -282,7 +293,7 @@ class _MemberFormSheetState extends State<MemberFormSheet> {
                               prefixIcon: const Icon(Icons.family_restroom_rounded),
                               errorText: relationshipError,
                             ),
-                            items: relationshipOptions
+                            items: widget.relationshipOptions
                                 .map((e) => DropdownMenuItem<String>(
                                       value: e,
                                       child: Text(HouseholdEntryFormatters.formatRelationship(e)),

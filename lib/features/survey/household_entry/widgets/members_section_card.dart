@@ -6,6 +6,7 @@ import 'survey_section_card.dart';
 class MembersSectionCard extends StatelessWidget {
   final List<Map<String, dynamic>> members;
   final VoidCallback? onAdd;
+  final VoidCallback? onSectionTap;
   final void Function(int index) onEdit;
   final void Function(int index) onDelete;
 
@@ -13,6 +14,7 @@ class MembersSectionCard extends StatelessWidget {
     super.key,
     required this.members,
     required this.onAdd,
+    this.onSectionTap,
     required this.onEdit,
     required this.onDelete,
   });
@@ -25,6 +27,7 @@ class MembersSectionCard extends StatelessWidget {
           ? 'Add all household members other than the HOF'
           : '${members.length} member(s) added',
       icon: Icons.groups_rounded,
+      onTap: onSectionTap,
       child: Column(
         children: [
           if (members.isEmpty)

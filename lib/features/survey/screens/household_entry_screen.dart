@@ -9,6 +9,7 @@ import '../../../core/services/household_submission_service.dart';
 import '../../../core/services/offline_survey_service.dart';
 import '../../../core/services/sync_service.dart';
 import '../../../core/sync/survey_payload_builder.dart';
+import '../household_entry/utils/household_entry_constants.dart';
 import '../household_entry/utils/household_entry_validators.dart';
 import '../household_entry/widgets/hof_section_card.dart';
 import '../household_entry/widgets/location_header_card.dart';
@@ -58,6 +59,9 @@ class _HouseholdEntryScreenState extends State<HouseholdEntryScreen>
   final TextEditingController hofEpicController = TextEditingController();
   final TextEditingController hofPmaygCodeController = TextEditingController();
   final TextEditingController hofJobCardCodeController = TextEditingController();
+  final FocusNode hofNameFocusNode = FocusNode();
+  final FocusNode membersSectionFocusNode = FocusNode(skipTraversal: true);
+  final GlobalKey membersSectionKey = GlobalKey();
 
   String? hofType;
   String? hofGender;
@@ -103,6 +107,8 @@ class _HouseholdEntryScreenState extends State<HouseholdEntryScreen>
     hofEpicController.dispose();
     hofPmaygCodeController.dispose();
     hofJobCardCodeController.dispose();
+    hofNameFocusNode.dispose();
+    membersSectionFocusNode.dispose();
 
     super.dispose();
   }
@@ -222,10 +228,16 @@ class _HouseholdEntryScreenState extends State<HouseholdEntryScreen>
       useSafeArea: true,
       builder: (_) => MemberFormSheet(
         initialMember: existingMember,
+        relationshipOptions: _allowedMemberRelationshipOptions,
       ),
     );
 
-    if (result == null) return;
+    if (!mounted) return;
+
+    if (result == null) {
+      _focusMembersListSection();
+      return;
+    }
 
     final prepared = payloadBuilder.normalizeMember(Map<String, dynamic>.from(result));
     prepared['device_member_ref'] ??= offlineService.newDeviceRef('mem');
@@ -237,6 +249,8 @@ class _HouseholdEntryScreenState extends State<HouseholdEntryScreen>
         members.add(prepared);
       }
     });
+
+    _focusMembersListSection();
   }
 
   Future<void> saveHousehold() async {
@@ -437,7 +451,7 @@ class _HouseholdEntryScreenState extends State<HouseholdEntryScreen>
     showAppSnack('Form cleared');
   }
 
-  void clearForm() {
+  void clearForm({bool focusHofNameAfterClear = false}) {
     FocusManager.instance.primaryFocus?.unfocus();
     setState(() {
       hofNameController.clear();
@@ -465,18 +479,20 @@ class _HouseholdEntryScreenState extends State<HouseholdEntryScreen>
 
       members.clear();
     });
+
+    if (focusHofNameAfterClear) {
+      _requestHofNameFocus();
+    }
   }
 
   Future<void> onPullToRefresh() async {
-    FocusManager.instance.primaryFocus?.unfocus();
+    clearForm(focusHofNameAfterClear: false);
     await Future.wait([
       refreshPendingCount(),
       refreshConnectionState(showSnack: false),
     ]);
-
-    if (mounted) {
-      setState(() {});
-    }
+    if (!mounted) return;
+    _requestHofNameFocus();
   }
 
   void showAppSnack(String message, {bool isError = false}) {
@@ -646,6 +662,39 @@ class _HouseholdEntryScreenState extends State<HouseholdEntryScreen>
     }
   }
 
+  List<String> get _allowedMemberRelationshipOptions {
+    final isSingle = (hofMaritalStatus ?? '').trim().toLowerCase() == 'single';
+    if (!isSingle) return relationshipOptions;
+
+    const blockedForSingle = {'spouse', 'son', 'daughter'};
+    return relationshipOptions
+        .where((option) => !blockedForSingle.contains(option.toLowerCase()))
+        .toList();
+  }
+
+  void _requestHofNameFocus() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      FocusScope.of(context).requestFocus(hofNameFocusNode);
+    });
+  }
+
+  void _focusMembersListSection() {
+    FocusManager.instance.primaryFocus?.unfocus();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      if (membersSectionKey.currentContext != null) {
+        Scrollable.ensureVisible(
+          membersSectionKey.currentContext!,
+          duration: const Duration(milliseconds: 250),
+          curve: Curves.easeOut,
+          alignment: 0.1,
+        );
+      }
+      FocusScope.of(context).requestFocus(membersSectionFocusNode);
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     final district = (session['district_name'] ?? '-').toString();
@@ -728,84 +777,96 @@ class _HouseholdEntryScreenState extends State<HouseholdEntryScreen>
           ),
         ),
       ),
-      body: Column(
-        children: [
-          if (pendingCount > 0) buildPendingBanner(),
-          Expanded(
-            child: RefreshIndicator(
-              onRefresh: onPullToRefresh,
-              child: ListView(
-                physics: const AlwaysScrollableScrollPhysics(),
-                padding: const EdgeInsets.fromLTRB(18, 14, 18, 120),
-                children: [
-                  LocationHeaderCard(
-                    district: district,
-                    block: block,
-                    village: village,
-                  ),
-                  const SizedBox(height: 18),
-                  HofSectionCard(
-                    data: HofSectionData(
-                      hofNameController: hofNameController,
-                      hofGuardianSpecifyController: hofGuardianSpecifyController,
-                      hofAgeController: hofAgeController,
-                      hofShgNameController: hofShgNameController,
-                      hofShgCodeController: hofShgCodeController,
-                      hofAadhaarController: hofAadhaarController,
-                      hofEpicController: hofEpicController,
-                      hofPmaygCodeController: hofPmaygCodeController,
-                      hofJobCardCodeController: hofJobCardCodeController,
-                      hofType: hofType,
-                      hofGender: hofGender,
-                      hofGenderErrorText: hofGenderErrorText,
-                      hofMaritalStatus: hofMaritalStatus,
-                      hofIsShgMember: hofIsShgMember,
-                      hofIsJobCardHolder: hofIsJobCardHolder,
-                      hofIsPmayg: hofIsPmayg,
-                      hofHasAadhaar: hofHasAadhaar,
-                      hofHasEpic: hofHasEpic,
-                      hofIsSpecialGroup: hofIsSpecialGroup,
-                      hofSpecialGroup: hofSpecialGroup,
-                      showShgField: _showHofShgField,
-                      availableSpecialGroups: _availableHofSpecialGroups,
-                      hofAadhaarErrorText: hofAadhaarErrorText,
+      body: GestureDetector(
+        behavior: HitTestBehavior.translucent,
+        onTap: () => FocusManager.instance.primaryFocus?.unfocus(),
+        child: Column(
+          children: [
+            if (pendingCount > 0) buildPendingBanner(),
+            Expanded(
+              child: RefreshIndicator(
+                onRefresh: onPullToRefresh,
+                child: ListView(
+                  physics: const AlwaysScrollableScrollPhysics(),
+                  padding: const EdgeInsets.fromLTRB(18, 14, 18, 120),
+                  children: [
+                    LocationHeaderCard(
+                      district: district,
+                      block: block,
+                      village: village,
                     ),
-                    onHofTypeChanged: handleHofTypeChanged,
-                    onHofGenderChanged: (value) => setState(() {
-                      hofGender = value;
-                      _syncHofDependentState();
-                    }),
-                    onMaritalStatusChanged: (value) => setState(() {
-                      hofMaritalStatus = value;
-                      _syncHofDependentState();
-                    }),
-                    onShgChanged: handleShgChanged,
-                    onPmaygChanged: handlePmaygChanged,
-                    onSpecialGroupChanged: handleSpecialGroupChanged,
-                    onSpecialGroupTypeChanged: (value) => setState(() {
-                      hofSpecialGroup = value;
-                      _syncHofDependentState();
-                    }),
-                    onJobCardChanged: handleJobCardChanged,
-                    onAadhaarChanged: handleAadhaarChanged,
-                    onEpicChanged: handleEpicChanged,
-                  ),
-                  const SizedBox(height: 18),
-                  MembersSectionCard(
-                    members: members,
-                    onAdd: _canAddMember ? () => openMemberSheet() : null,
-                    onEdit: (index) => openMemberSheet(
-                      existingMember: members[index],
-                      index: index,
+                    const SizedBox(height: 18),
+                    HofSectionCard(
+                      data: HofSectionData(
+                        hofNameController: hofNameController,
+                        hofGuardianSpecifyController: hofGuardianSpecifyController,
+                        hofAgeController: hofAgeController,
+                        hofShgNameController: hofShgNameController,
+                        hofShgCodeController: hofShgCodeController,
+                        hofAadhaarController: hofAadhaarController,
+                        hofEpicController: hofEpicController,
+                        hofPmaygCodeController: hofPmaygCodeController,
+                        hofJobCardCodeController: hofJobCardCodeController,
+                        hofNameFocusNode: hofNameFocusNode,
+                        hofType: hofType,
+                        hofGender: hofGender,
+                        hofGenderErrorText: hofGenderErrorText,
+                        hofMaritalStatus: hofMaritalStatus,
+                        hofIsShgMember: hofIsShgMember,
+                        hofIsJobCardHolder: hofIsJobCardHolder,
+                        hofIsPmayg: hofIsPmayg,
+                        hofHasAadhaar: hofHasAadhaar,
+                        hofHasEpic: hofHasEpic,
+                        hofIsSpecialGroup: hofIsSpecialGroup,
+                        hofSpecialGroup: hofSpecialGroup,
+                        showShgField: _showHofShgField,
+                        availableSpecialGroups: _availableHofSpecialGroups,
+                        hofAadhaarErrorText: hofAadhaarErrorText,
+                      ),
+                      onHofTypeChanged: handleHofTypeChanged,
+                      onHofGenderChanged: (value) => setState(() {
+                        hofGender = value;
+                        _syncHofDependentState();
+                      }),
+                      onMaritalStatusChanged: (value) => setState(() {
+                        hofMaritalStatus = value;
+                        _syncHofDependentState();
+                      }),
+                      onShgChanged: handleShgChanged,
+                      onPmaygChanged: handlePmaygChanged,
+                      onSpecialGroupChanged: handleSpecialGroupChanged,
+                      onSpecialGroupTypeChanged: (value) => setState(() {
+                        hofSpecialGroup = value;
+                        _syncHofDependentState();
+                      }),
+                      onJobCardChanged: handleJobCardChanged,
+                      onAadhaarChanged: handleAadhaarChanged,
+                      onEpicChanged: handleEpicChanged,
                     ),
-                    onDelete: (index) =>
-                        setState(() => members.removeAt(index)),
-                  ),
-                ],
+                    const SizedBox(height: 18),
+                    Focus(
+                      focusNode: membersSectionFocusNode,
+                      child: KeyedSubtree(
+                        key: membersSectionKey,
+                        child: MembersSectionCard(
+                          members: members,
+                          onAdd: _canAddMember ? () => openMemberSheet() : null,
+                          onSectionTap: _focusMembersListSection,
+                          onEdit: (index) => openMemberSheet(
+                            existingMember: members[index],
+                            index: index,
+                          ),
+                          onDelete: (index) =>
+                              setState(() => members.removeAt(index)),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
               ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
