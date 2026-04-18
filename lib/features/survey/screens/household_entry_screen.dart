@@ -60,6 +60,12 @@ class _HouseholdEntryScreenState extends State<HouseholdEntryScreen>
   final TextEditingController hofPmaygCodeController = TextEditingController();
   final TextEditingController hofJobCardCodeController = TextEditingController();
   final FocusNode hofNameFocusNode = FocusNode();
+  final FocusNode hofGuardianSpecifyFocusNode = FocusNode();
+  final FocusNode hofShgNameFocusNode = FocusNode();
+  final FocusNode hofPmaygCodeFocusNode = FocusNode();
+  final FocusNode hofJobCardCodeFocusNode = FocusNode();
+  final FocusNode hofAadhaarFocusNode = FocusNode();
+  final FocusNode hofEpicFocusNode = FocusNode();
   final FocusNode membersSectionFocusNode = FocusNode(skipTraversal: true);
   final GlobalKey membersSectionKey = GlobalKey();
 
@@ -108,6 +114,12 @@ class _HouseholdEntryScreenState extends State<HouseholdEntryScreen>
     hofPmaygCodeController.dispose();
     hofJobCardCodeController.dispose();
     hofNameFocusNode.dispose();
+    hofGuardianSpecifyFocusNode.dispose();
+    hofShgNameFocusNode.dispose();
+    hofPmaygCodeFocusNode.dispose();
+    hofJobCardCodeFocusNode.dispose();
+    hofAadhaarFocusNode.dispose();
+    hofEpicFocusNode.dispose();
     membersSectionFocusNode.dispose();
 
     super.dispose();
@@ -221,6 +233,7 @@ class _HouseholdEntryScreenState extends State<HouseholdEntryScreen>
     Map<String, dynamic>? existingMember,
     int? index,
   }) async {
+    _dismissKeyboard();
     final result = await showModalBottomSheet<Map<String, dynamic>>(
       context: context,
       isScrollControlled: true,
@@ -233,6 +246,7 @@ class _HouseholdEntryScreenState extends State<HouseholdEntryScreen>
     );
 
     if (!mounted) return;
+    _dismissKeyboard();
 
     if (result == null) {
       _focusMembersListSection();
@@ -251,6 +265,23 @@ class _HouseholdEntryScreenState extends State<HouseholdEntryScreen>
     });
 
     _focusMembersListSection();
+  }
+
+  void _dismissKeyboard() {
+    FocusManager.instance.primaryFocus?.unfocus();
+  }
+
+  void _requestFocus(FocusNode focusNode) {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      FocusScope.of(context).requestFocus(focusNode);
+    });
+  }
+
+  void _unfocusNodeIfActive(FocusNode focusNode) {
+    if (focusNode.hasFocus) {
+      focusNode.unfocus();
+    }
   }
 
   Future<void> saveHousehold() async {
@@ -452,7 +483,7 @@ class _HouseholdEntryScreenState extends State<HouseholdEntryScreen>
   }
 
   void clearForm({bool focusHofNameAfterClear = false}) {
-    FocusManager.instance.primaryFocus?.unfocus();
+    _dismissKeyboard();
     setState(() {
       hofNameController.clear();
       hofGuardianSpecifyController.clear();
@@ -525,7 +556,10 @@ class _HouseholdEntryScreenState extends State<HouseholdEntryScreen>
     setState(() {
       hofType = value;
       if (value != 'guardian') {
+        _unfocusNodeIfActive(hofGuardianSpecifyFocusNode);
         hofGuardianSpecifyController.clear();
+      } else {
+        _requestFocus(hofGuardianSpecifyFocusNode);
       }
       _syncHofDependentState();
     });
@@ -535,8 +569,11 @@ class _HouseholdEntryScreenState extends State<HouseholdEntryScreen>
     setState(() {
       hofIsShgMember = value;
       if (!value) {
+        _unfocusNodeIfActive(hofShgNameFocusNode);
         hofShgNameController.clear();
         hofShgCodeController.clear();
+      } else {
+        _requestFocus(hofShgNameFocusNode);
       }
     });
   }
@@ -545,7 +582,10 @@ class _HouseholdEntryScreenState extends State<HouseholdEntryScreen>
     setState(() {
       hofIsPmayg = value;
       if (!value) {
+        _unfocusNodeIfActive(hofPmaygCodeFocusNode);
         hofPmaygCodeController.clear();
+      } else {
+        _requestFocus(hofPmaygCodeFocusNode);
       }
     });
   }
@@ -564,7 +604,10 @@ class _HouseholdEntryScreenState extends State<HouseholdEntryScreen>
     setState(() {
       hofIsJobCardHolder = value;
       if (!value) {
+        _unfocusNodeIfActive(hofJobCardCodeFocusNode);
         hofJobCardCodeController.clear();
+      } else {
+        _requestFocus(hofJobCardCodeFocusNode);
       }
     });
   }
@@ -578,7 +621,10 @@ class _HouseholdEntryScreenState extends State<HouseholdEntryScreen>
             )
           : null;
       if (!value) {
+        _unfocusNodeIfActive(hofAadhaarFocusNode);
         hofAadhaarController.clear();
+      } else {
+        _requestFocus(hofAadhaarFocusNode);
       }
     });
   }
@@ -587,7 +633,10 @@ class _HouseholdEntryScreenState extends State<HouseholdEntryScreen>
     setState(() {
       hofHasEpic = value;
       if (!value) {
+        _unfocusNodeIfActive(hofEpicFocusNode);
         hofEpicController.clear();
+      } else {
+        _requestFocus(hofEpicFocusNode);
       }
     });
   }
@@ -656,9 +705,15 @@ class _HouseholdEntryScreenState extends State<HouseholdEntryScreen>
     }
 
     if (hofType == 'father' && !_showHofShgField) {
+      _unfocusNodeIfActive(hofShgNameFocusNode);
       hofIsShgMember = false;
       hofShgNameController.clear();
       hofShgCodeController.clear();
+    }
+
+    if (hofType != 'guardian') {
+      _unfocusNodeIfActive(hofGuardianSpecifyFocusNode);
+      hofGuardianSpecifyController.clear();
     }
   }
 
@@ -673,14 +728,11 @@ class _HouseholdEntryScreenState extends State<HouseholdEntryScreen>
   }
 
   void _requestHofNameFocus() {
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!mounted) return;
-      FocusScope.of(context).requestFocus(hofNameFocusNode);
-    });
+    _requestFocus(hofNameFocusNode);
   }
 
   void _focusMembersListSection() {
-    FocusManager.instance.primaryFocus?.unfocus();
+    _dismissKeyboard();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
       if (membersSectionKey.currentContext != null) {
@@ -779,7 +831,7 @@ class _HouseholdEntryScreenState extends State<HouseholdEntryScreen>
       ),
       body: GestureDetector(
         behavior: HitTestBehavior.translucent,
-        onTap: () => FocusManager.instance.primaryFocus?.unfocus(),
+        onTap: _dismissKeyboard,
         child: Column(
           children: [
             if (pendingCount > 0) buildPendingBanner(),
@@ -808,6 +860,12 @@ class _HouseholdEntryScreenState extends State<HouseholdEntryScreen>
                         hofPmaygCodeController: hofPmaygCodeController,
                         hofJobCardCodeController: hofJobCardCodeController,
                         hofNameFocusNode: hofNameFocusNode,
+                        hofGuardianSpecifyFocusNode: hofGuardianSpecifyFocusNode,
+                        hofShgNameFocusNode: hofShgNameFocusNode,
+                        hofPmaygCodeFocusNode: hofPmaygCodeFocusNode,
+                        hofJobCardCodeFocusNode: hofJobCardCodeFocusNode,
+                        hofAadhaarFocusNode: hofAadhaarFocusNode,
+                        hofEpicFocusNode: hofEpicFocusNode,
                         hofType: hofType,
                         hofGender: hofGender,
                         hofGenderErrorText: hofGenderErrorText,

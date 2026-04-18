@@ -18,6 +18,12 @@ class HofSectionData {
   final TextEditingController hofPmaygCodeController;
   final TextEditingController hofJobCardCodeController;
   final FocusNode hofNameFocusNode;
+  final FocusNode hofGuardianSpecifyFocusNode;
+  final FocusNode hofShgNameFocusNode;
+  final FocusNode hofPmaygCodeFocusNode;
+  final FocusNode hofJobCardCodeFocusNode;
+  final FocusNode hofAadhaarFocusNode;
+  final FocusNode hofEpicFocusNode;
   final String? hofType;
   final String? hofGender;
   final String? hofMaritalStatus;
@@ -44,6 +50,12 @@ class HofSectionData {
     required this.hofPmaygCodeController,
     required this.hofJobCardCodeController,
     required this.hofNameFocusNode,
+    required this.hofGuardianSpecifyFocusNode,
+    required this.hofShgNameFocusNode,
+    required this.hofPmaygCodeFocusNode,
+    required this.hofJobCardCodeFocusNode,
+    required this.hofAadhaarFocusNode,
+    required this.hofEpicFocusNode,
     required this.hofType,
     required this.hofGender,
     required this.hofMaritalStatus,
@@ -121,6 +133,7 @@ class HofSectionCard extends StatelessWidget {
             show: data.hofType == 'guardian',
             child: TextField(
               controller: data.hofGuardianSpecifyController,
+              focusNode: data.hofGuardianSpecifyFocusNode,
               decoration: const InputDecoration(
                 labelText: 'If guardian, specify',
                 prefixIcon: Icon(Icons.badge_rounded),
@@ -204,6 +217,7 @@ class HofSectionCard extends StatelessWidget {
               children: [
                 TextField(
                   controller: data.hofShgNameController,
+                  focusNode: data.hofShgNameFocusNode,
                   decoration: const InputDecoration(
                     labelText: 'SHG Name',
                     prefixIcon: Icon(Icons.groups_rounded),
@@ -230,6 +244,7 @@ class HofSectionCard extends StatelessWidget {
             show: data.hofIsPmayg,
             child: TextField(
               controller: data.hofPmaygCodeController,
+              focusNode: data.hofPmaygCodeFocusNode,
               decoration: const InputDecoration(
                 labelText: 'PMAY-G Code (Optional)',
                 prefixIcon: Icon(Icons.home_work_outlined),
@@ -246,6 +261,7 @@ class HofSectionCard extends StatelessWidget {
             show: data.hofIsJobCardHolder,
             child: TextField(
               controller: data.hofJobCardCodeController,
+              focusNode: data.hofJobCardCodeFocusNode,
               decoration: const InputDecoration(
                 labelText: 'Job Card Code (Optional)',
                 prefixIcon: Icon(Icons.badge_outlined),
@@ -262,6 +278,7 @@ class HofSectionCard extends StatelessWidget {
             show: data.hofHasAadhaar,
             child: TextField(
               controller: data.hofAadhaarController,
+              focusNode: data.hofAadhaarFocusNode,
               keyboardType: TextInputType.number,
               inputFormatters: [
                 FilteringTextInputFormatter.digitsOnly,
@@ -284,6 +301,7 @@ class HofSectionCard extends StatelessWidget {
             show: data.hofHasEpic,
             child: TextField(
               controller: data.hofEpicController,
+              focusNode: data.hofEpicFocusNode,
               decoration: const InputDecoration(
                 labelText: 'EPIC Number (Optional)',
                 prefixIcon: Icon(Icons.how_to_vote_rounded),

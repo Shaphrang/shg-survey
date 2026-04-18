@@ -37,6 +37,11 @@ class _MemberFormSheetState extends State<MemberFormSheet> {
   final TextEditingController epicController = TextEditingController();
   final TextEditingController pmaygCodeController = TextEditingController();
   final TextEditingController jobCardCodeController = TextEditingController();
+  final FocusNode relationshipOtherFocusNode = FocusNode();
+  final FocusNode shgNameFocusNode = FocusNode();
+  final FocusNode jobCardCodeFocusNode = FocusNode();
+  final FocusNode aadhaarFocusNode = FocusNode();
+  final FocusNode epicFocusNode = FocusNode();
 
   String? relationship;
   String? gender;
@@ -70,12 +75,18 @@ class _MemberFormSheetState extends State<MemberFormSheet> {
   }
 
   void _clearShgState() {
+    if (shgNameFocusNode.hasFocus) {
+      shgNameFocusNode.unfocus();
+    }
     isShgMember = false;
     shgNameController.clear();
     shgCodeController.clear();
   }
 
   void _clearEpicState() {
+    if (epicFocusNode.hasFocus) {
+      epicFocusNode.unfocus();
+    }
     hasEpic = false;
     epicController.clear();
   }
@@ -90,6 +101,9 @@ class _MemberFormSheetState extends State<MemberFormSheet> {
     }
 
     if (!hasAadhaar) {
+      if (aadhaarFocusNode.hasFocus) {
+        aadhaarFocusNode.unfocus();
+      }
       aadhaarController.clear();
     }
 
@@ -148,6 +162,7 @@ class _MemberFormSheetState extends State<MemberFormSheet> {
 
   @override
   void dispose() {
+    FocusManager.instance.primaryFocus?.unfocus();
     nameController.dispose();
     ageController.dispose();
     relationshipOtherController.dispose();
@@ -157,10 +172,27 @@ class _MemberFormSheetState extends State<MemberFormSheet> {
     epicController.dispose();
     pmaygCodeController.dispose();
     jobCardCodeController.dispose();
+    relationshipOtherFocusNode.dispose();
+    shgNameFocusNode.dispose();
+    jobCardCodeFocusNode.dispose();
+    aadhaarFocusNode.dispose();
+    epicFocusNode.dispose();
     super.dispose();
   }
 
+  void _dismissKeyboard() {
+    FocusManager.instance.primaryFocus?.unfocus();
+  }
+
+  void _requestFocus(FocusNode focusNode) {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      FocusScope.of(context).requestFocus(focusNode);
+    });
+  }
+
   void submit() {
+    _dismissKeyboard();
     _syncMemberDependentState();
     final valid = formKey.currentState?.validate() ?? false;
 
@@ -215,7 +247,7 @@ class _MemberFormSheetState extends State<MemberFormSheet> {
 
     return GestureDetector(
       behavior: HitTestBehavior.translucent,
-      onTap: () => FocusManager.instance.primaryFocus?.unfocus(),
+      onTap: _dismissKeyboard,
       child: Container(
         decoration: const BoxDecoration(
           color: Color(0xFFF5F7FB),
@@ -304,7 +336,12 @@ class _MemberFormSheetState extends State<MemberFormSheet> {
                                 relationship = value;
                                 relationshipError = null;
                                 if (value != 'other') {
+                                  if (relationshipOtherFocusNode.hasFocus) {
+                                    relationshipOtherFocusNode.unfocus();
+                                  }
                                   relationshipOtherController.clear();
+                                } else {
+                                  _requestFocus(relationshipOtherFocusNode);
                                 }
                                 _syncMemberDependentState();
                               });
@@ -314,6 +351,7 @@ class _MemberFormSheetState extends State<MemberFormSheet> {
                             show: relationship == 'other',
                             child: TextFormField(
                               controller: relationshipOtherController,
+                              focusNode: relationshipOtherFocusNode,
                               decoration: const InputDecoration(
                                 labelText: 'Specify Relationship',
                                 prefixIcon: Icon(Icons.edit_note_rounded),
@@ -456,6 +494,11 @@ class _MemberFormSheetState extends State<MemberFormSheet> {
                                   if (!value) {
                                     shgNameController.clear();
                                     shgCodeController.clear();
+                                    if (shgNameFocusNode.hasFocus) {
+                                      shgNameFocusNode.unfocus();
+                                    }
+                                  } else {
+                                    _requestFocus(shgNameFocusNode);
                                   }
                                 });
                               },
@@ -467,6 +510,7 @@ class _MemberFormSheetState extends State<MemberFormSheet> {
                               children: [
                                 TextFormField(
                                   controller: shgNameController,
+                                  focusNode: shgNameFocusNode,
                                   decoration: const InputDecoration(
                                     labelText: 'SHG Name',
                                     prefixIcon: Icon(Icons.groups_rounded),
@@ -499,6 +543,11 @@ class _MemberFormSheetState extends State<MemberFormSheet> {
                                 isJobCardHolder = value;
                                 if (!value) {
                                   jobCardCodeController.clear();
+                                  if (jobCardCodeFocusNode.hasFocus) {
+                                    jobCardCodeFocusNode.unfocus();
+                                  }
+                                } else {
+                                  _requestFocus(jobCardCodeFocusNode);
                                 }
                               });
                             },
@@ -507,6 +556,7 @@ class _MemberFormSheetState extends State<MemberFormSheet> {
                             show: isJobCardHolder,
                             child: TextFormField(
                               controller: jobCardCodeController,
+                              focusNode: jobCardCodeFocusNode,
                               decoration: const InputDecoration(
                                 labelText: 'Job Card Code (Optional)',
                                 prefixIcon: Icon(Icons.badge_outlined),
@@ -521,6 +571,9 @@ class _MemberFormSheetState extends State<MemberFormSheet> {
                               setState(() {
                                 hasAadhaar = value;
                                 _syncMemberDependentState();
+                                if (value) {
+                                  _requestFocus(aadhaarFocusNode);
+                                }
                               });
                             },
                           ),
@@ -528,6 +581,7 @@ class _MemberFormSheetState extends State<MemberFormSheet> {
                             show: hasAadhaar,
                             child: TextFormField(
                               controller: aadhaarController,
+                              focusNode: aadhaarFocusNode,
                               keyboardType: TextInputType.number,
                               inputFormatters: [
                                 FilteringTextInputFormatter.digitsOnly,
@@ -551,7 +605,14 @@ class _MemberFormSheetState extends State<MemberFormSheet> {
                               onChanged: (value) {
                                 setState(() {
                                   hasEpic = value;
-                                  if (!value) epicController.clear();
+                                  if (!value) {
+                                    epicController.clear();
+                                    if (epicFocusNode.hasFocus) {
+                                      epicFocusNode.unfocus();
+                                    }
+                                  } else {
+                                    _requestFocus(epicFocusNode);
+                                  }
                                 });
                               },
                             ),
@@ -560,6 +621,7 @@ class _MemberFormSheetState extends State<MemberFormSheet> {
                             show: _showEpicSection && hasEpic,
                             child: TextFormField(
                               controller: epicController,
+                              focusNode: epicFocusNode,
                               decoration: const InputDecoration(
                                 labelText: 'EPIC Number (Optional)',
                                 prefixIcon: Icon(Icons.how_to_vote_rounded),
@@ -582,7 +644,10 @@ class _MemberFormSheetState extends State<MemberFormSheet> {
                             children: [
                               Expanded(
                                 child: OutlinedButton(
-                                  onPressed: () => Navigator.pop(context),
+                                  onPressed: () {
+                                    _dismissKeyboard();
+                                    Navigator.pop(context);
+                                  },
                                   child: const Text('Cancel'),
                                 ),
                               ),
