@@ -620,6 +620,6 @@ class _MemberFormSheetState extends State<MemberFormSheet> {
           ),
         ),
       ),
-    );
+    ));
   }
 }
