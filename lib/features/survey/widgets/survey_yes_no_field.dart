@@ -4,12 +4,14 @@ class SurveyYesNoField extends StatelessWidget {
   final String title;
   final bool value;
   final ValueChanged<bool> onChanged;
+  final bool dismissKeyboardOnToggle;
 
   const SurveyYesNoField({
     super.key,
     required this.title,
     required this.value,
     required this.onChanged,
+    this.dismissKeyboardOnToggle = true,
   });
 
   @override
@@ -55,13 +57,23 @@ class SurveyYesNoField extends StatelessWidget {
                 _ChoicePill(
                   label: 'Yes',
                   selected: value,
-                  onTap: () => onChanged(true),
+                  onTap: () {
+                    if (dismissKeyboardOnToggle) {
+                      FocusManager.instance.primaryFocus?.unfocus();
+                    }
+                    onChanged(true);
+                  },
                 ),
                 const SizedBox(width: 6),
                 _ChoicePill(
                   label: 'No',
                   selected: !value,
-                  onTap: () => onChanged(false),
+                  onTap: () {
+                    if (dismissKeyboardOnToggle) {
+                      FocusManager.instance.primaryFocus?.unfocus();
+                    }
+                    onChanged(false);
+                  },
                 ),
               ],
             ),
