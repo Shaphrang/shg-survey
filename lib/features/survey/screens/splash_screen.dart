@@ -100,9 +100,9 @@ class _SplashScreenState extends State<SplashScreen> {
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
             colors: [
-              Color(0xFF0F6FFF),
-              Color(0xFF2F80ED),
-              Color(0xFF38D39F),
+              Color(0xFF155E63),
+              Color(0xFF1F8A5B),
+              Color(0xFF7CB342),
             ],
           ),
         ),
@@ -133,7 +133,7 @@ class _SplashScreenState extends State<SplashScreen> {
                   ),
                   const SizedBox(height: 22),
                   const Text(
-                    "SHG Survey",
+                    "Welcome to SHINE",
                     style: TextStyle(
                       color: Colors.white,
                       fontSize: 28,

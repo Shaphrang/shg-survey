@@ -474,7 +474,7 @@ class _LocationSetupScreenState extends State<LocationSetupScreen> {
       centerTitle: false,
       titleSpacing: 16,
       title: const Text(
-        "MSRLS - Household Survey",
+        "MSRLS - SHINE",
         style: TextStyle(
           fontSize: 20,
           fontWeight: FontWeight.w700,

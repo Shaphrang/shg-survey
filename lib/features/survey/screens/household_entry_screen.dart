@@ -959,7 +959,7 @@ class _HouseholdEntryScreenState extends State<HouseholdEntryScreen>
                   ),
                   SizedBox(height: 14),
                   Text(
-                    'Survey Menu',
+                    'SHINE Menu',
                     style: TextStyle(
                       color: Colors.white,
                       fontWeight: FontWeight.w800,
